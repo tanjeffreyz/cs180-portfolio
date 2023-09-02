@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>CS 180 Project 1</title>
+
+    <link rel="stylesheet" href="style.css?">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&family=Open+Sans:ital,wght@0,400;0,700;1,600&display=swap"
+        rel="stylesheet">
+
+    <script defer src="https://use.fontawesome.com/releases/v5.7.2/js/all.js"
+        integrity="sha384-0pzryjIRos8mFBWMzSSZApWtPl/5++eIfzYmTgBBmXYdhvxPc+XcFEk+zJwDgWbP"
+        crossorigin="anonymous"></script>
+    <script src="offsets.js"></script>
+</head>
+
+<body>
+    <!-- Title -->
+    <div class="navbar clear nav-top">
+        <div class="row" style="text-align: center;">
+            <h1>CS 180 Project 1: Colorizing the Prokudin-Gorskii photo collection</h1>
+            <b>By Jeffrey Tan</b>
+        </div>
+    </div>
+
+    <div class="container clear">
+        <div class="row wrapper">
+            <!-- Table of Contents -->
+            <div class="sidepanel" id="table-of-contents"></div>
+
+            <!-- Contents -->
+            <div class="right-col">
+                <div class="gallery" style="text-align: center;">
+                    <img src="results/emir.jpg" />
+                </div>
+
+
+
+                <h1 id="introduction">Introduction</h1>
+                <p>
+                    For each subject in the Prokudin-Gorskii collection, three exposures were taken
+                    through a red, a
+                    green, and a blue filter. However, across these three channels, the images are
+                    not perfectly
+                    aligned, so a more intelligent algorithm is needed to produce the photographs in
+                    color. This project
+                    focuses on using single-scale and multi-scale algorithms to align both small and
+                    very large images
+                    from the collection. Additionally, methods of automatically contrasting and
+                    white-balancing the
+                    resulting color images were also explored.
+                </p>
+
+
+
+                <div class="section-divider"></div>
+
+
+
+                <h1 id="single-scale-alignment">Single-scale Alignment</h1>
+
+                <h2 id="single-scale-alignment-approach">Approach</h2>
+                <p>
+                    For the smaller images, it was efficient enough to work only with the original
+                    resolution. The blue
+                    channel was held constant while the red and green channels were aligned to it.
+                    The algorithm is a
+                    simple exhaustive search across all possible combinations of image shifts
+                    (<code>dx</code> and
+                    <code>dy</code>) both within the range <code>[-delta, delta]</code> (I used
+                    <code>delta=15</code>).
+                    For each of these combinations,
+                    the shifted image was compared to the target using a pixel-wise
+                    sum-absolute-error (SAE) function,
+                    in
+                    which the intensities of corresponding pixels are subtracted, and the absolute
+                    values of these
+                    differences are summed across all pixels. However, before calculating this
+                    error, the border of the
+                    images is cropped by <code>max(int(max(h, w) * 0.045), delta)</code> so that
+                    only the internal
+                    pixels are represented in the error. The <code>int(max(h, w) * 0.045)</code>
+                    term is necessary for
+                    the larger images because their borders are proportionally larger in terms of
+                    number of pixels.
+                    Lastly, the combination of <code>dx</code> and <code>dy</code>
+                    that achieved the lowest error is returned as the final alignment offset.
+                </p>
+                <p>
+                    I also tried using a sum-squared-error (SSE) function as my metric, which did
+                    not work nearly as
+                    well as SAE.
+                    SSE punishes large differences in pixel values much more heavily than SAE does,
+                    which could be a
+                    disadvantage. Many images have artifacts that are <b>only present in some, but
+                        not all, of the color channels</b>, which means the differences in pixel
+                    intensities caused by
+                    these artifacts are
+                    large. With SSE, the error caused by these artifacts are amplified, potentially
+                    drowning out more
+                    meaningful error from other parts of the image. This causes the algorithm to
+                    instead focus on
+                    finding a good match for the artifacts, potentially rejecting perfect matches of
+                    the actual
+                    contents.
+                </p>
+
+                <h2 id="single-scale-alignment-results">Results</h2>
+                <div class="gallery">
+                    <img src="results/cathedral.jpg" />
+                    <img src="results/monastery.jpg" />
+                    <img src="results/tobolsk.jpg" />
+                </div>
+
+                <h2 id="single-scale-alignment-custom-images">Custom Images</h2>
+                <div class="gallery">
+                    <img src="results/_conservatory.jpg" />
+                    <img src="results/_peonies.jpg" />
+                </div>
+
+                <h2 id="single-scale-alignment-offsets">Offsets</h2>
+                <table id="single-scale-alignment-offsets-list" class="comparison">
+                    <tr>
+                        <th>File name</th>
+                        <th>Red dx</th>
+                        <th>Red dy</th>
+                        <th>Green dx</th>
+                        <th>Green dy</th>
+                    </tr>
+                </table>
+                <script>
+                    const list = document.getElementById('single-scale-alignment-offsets-list')
+                    for (let name of Object.keys(offsets).sort().reverse()) {
+                        if (!name.endsWith('jpg')) continue
+                        const data = offsets[name]
+                        const tr = document.createElement('tr')
+                        tr.innerHTML = `
+                            <td>${name}</td>
+                            <td>${data.r_dx}</td>
+                            <td>${data.r_dy}</td>
+                            <td>${data.g_dx}</td>
+                            <td>${data.g_dy}</td>
+                        `
+                        list.appendChild(tr)
+                    }
+                </script>
+
+
+                <div class="section-divider"></div>
+
+
+
+                <h1 id="multi-scale-alignment">Multi-scale Alignment</h1>
+
+                <h2 id="multi-scale-alignment-approach">Approach</h2>
+                <p>
+                    For the larger <code>.tif</code> images, an image pyramid was used to speed up
+                    the alignment
+                    process. The levels of the pyramid are processed from coarsest (level
+                    <code>N-1</code>) to finest
+                    (level <code>0</code>). At level <code>i</code>, both the <code>source</code>
+                    image (red or green
+                    channel) and <code>target</code> image (blue channel) are downscaled to
+                    <code>1 / (2 ** i)</code> of
+                    their original dimensions. Then, the single-scale alignment algorithm is run on
+                    these downscaled
+                    images to obtain two offsets, <code>dx</code> and <code>dy</code>. However,
+                    because these offsets
+                    are relative to the dimensions of the downscaled image, they need to be
+                    multiplied by
+                    <code>2 ** i</code> to convert back to the dimensions of the original image.
+                    These converted offsets
+                    are then added to the running totals <code>total_dx</code> and
+                    <code>total_dy</code>, and the
+                    original <code>source</code> image is shifted by these offsets in preparation
+                    for the next
+                    iteration.
+                </p>
+
+                <h2 id="multi-scale-alignment-optimizations">Optimizations</h2>
+                <p>
+                    Because calculations at each combination of <code>dx</code> and <code>dy</code>
+                    are independent of
+                    each other, the alignment algorithm could be multi-threaded. With <code>N</code>
+                    threads, thread
+                    <code>i</code> is responsible for computing error values for <code>dy</code> in
+                    <code>range(-delta + i, delta + 1, N)</code> and all <code>dx</code>'s. This
+                    ensures an even
+                    distribution of work across all <code>N</code> threads.
+                    After all threads finish, the combination of <code>dx</code> and <code>dy</code>
+                    with the lowest
+                    error is returned.
+                </p>
+                <p>
+                    In the end, this optimization achieved a <code>3.3x</code> speedup, decreasing
+                    average processing
+                    time from about <code>75</code> seconds to <code>23</code> seconds.
+                </p>
+
+                <h2 id="multi-scale-alignment-results">Results</h2>
+                <div class="gallery">
+                    <img src="results/church.jpg" />
+                    <img src="results/emir.jpg" />
+                    <img src="results/harvesters.jpg" />
+                    <img src="results/icon.jpg" />
+                    <img src="results/lady.jpg" />
+                    <img src="results/melons.jpg" />
+                    <img src="results/onion_church.jpg" />
+                    <img src="results/sculpture.jpg" />
+                    <img src="results/self_portrait.jpg" />
+                    <img src="results/three_generations.jpg" />
+                    <img src="results/train.jpg" />
+                </div>
+
+                <h2 id="multi-scale-alignment-misalignments">Misalignments</h2>
+                <p>
+                    The multi-scale alignment algorithm worked well for all images except
+                    <code>lady.tif</code>, in which the red channel was slightly misaligned. This
+                    could be due to the artifacts in the red channel, which cover a much larger
+                    portion of the image compared to artifacts in the other channels. Slightly
+                    increasing the amount of cropping (shrinking the internal pixels region) before
+                    calculating the error metric helped resolve this issue:
+                </p>
+                <img src="extras\lady_fixed.jpg" width="100%" style="max-width: 750px;" />
+
+                <h2 id="multi-scale-alignment-custom-images">Custom Images</h2>
+                <div class="gallery">
+                    <img src="results/_bird_cherry_tree.jpg" />
+                    <img src="results/_in_little_russia.jpg" />
+                    <img src="results/_lilacs.jpg" />
+                    <img src="results/_sunset_at_the_sea.jpg" />
+                    <img src="results/_sunset.jpg" />
+                    <img src="results/_urals.jpg" />
+                </div>
+
+                <h2 id="multi-scale-alignment-offsets">Offsets</h2>
+                <table id="multi-scale-alignment-offsets-list" class="comparison">
+                    <tr>
+                        <th>File name</th>
+                        <th>Red dx</th>
+                        <th>Red dy</th>
+                        <th>Green dx</th>
+                        <th>Green dy</th>
+                    </tr>
+                </table>
+                <script>
+                    const list2 = document.getElementById('multi-scale-alignment-offsets-list')
+                    for (let name of Object.keys(offsets).sort().reverse()) {
+                        if (!name.endsWith('tif')) continue
+                        const data = offsets[name]
+                        const tr = document.createElement('tr')
+                        tr.innerHTML = `
+                            <td>${name}</td>
+                            <td>${data.r_dx}</td>
+                            <td>${data.r_dy}</td>
+                            <td>${data.g_dx}</td>
+                            <td>${data.g_dy}</td>
+                        `
+                        list2.appendChild(tr)
+                    }
+                </script>
+
+                <div class="section-divider"></div>
+
+
+
+                <h1 id="bells-and-whistles">Bells and Whistles</h1>
+
+                <h2 id="bells-and-whistles-contrast">Contrast</h2>
+                <p>
+                    Automatic contrasting was implemented using the cumulative histogram method
+                    taught in class. For each channel, an array <code>freq</code> of size
+                    <code>256</code> was used to count the frequency of each pixel intensity value.
+                    A prefix sum is computed over the values in this array such that
+                    <code>prefix[i] = sum(freq[:i+1])</code>. The last element of the prefix sum is
+                    the total number of pixels in the image, which is stored as <code>total</code>.
+                    This way, <code>prefix[i] / total</code> gives the proportion of pixels that
+                    have intensity <code><= i</code>. For each pixel in the channel, its intensity
+                    is reassigned to be equal to <code>prefix[i] / total * 255</code>, which
+                    stretches the dynamic range of the channel to fill <code>[0, 255]</code>.
+                </p>
+                <table class="comparison">
+                    <tr>
+                        <th>Before</th>
+                        <th>After</th>
+                    </tr>
+                    <tr>
+                        <td><img src="results/cathedral.jpg" /></td>
+                        <td><img src="extras/contrast/cathedral.jpg" /></td>
+                    </tr>
+                    <tr>
+                        <td><img src="results/monastery.jpg" /></td>
+                        <td><img src="extras/contrast/monastery.jpg" /></td>
+                    </tr>
+                    <tr>
+                        <td><img src="results/tobolsk.jpg" /></td>
+                        <td><img src="extras/contrast/tobolsk.jpg" /></td>
+                    </tr>
+                    <tr>
+                        <td><img src="results/church.jpg" /></td>
+                        <td><img src="extras/contrast/church.jpg" /></td>
+                    </tr>
+                </table>
+
+                <h2 id="bells-and-whistles-white-balance">White Balance</h2>
+                <p>
+                    White balancing was achieved through shifting the average pixel color to a desired <code>gray_point</code>. The average color vector <code>avg_color</code> was computed using <code>np.mean()</code> across the first (<code>y</code>) and second (<code>x</code>) dimensions. Then, all pixels in the image were divided by <code>avg_color</code> and multiplied by <code>gray_point</code> through shape-broadcasting.
+                </p>
+                <table class="comparison">
+                    <tr>
+                        <th width="150px">Gray point</th>
+                        <th>Before</th>
+                        <th>After</th>
+                    </tr>
+                    <tr>
+                        <td>(128, 128, 128)</td>
+                        <td><img src="results/cathedral.jpg" /></td>
+                        <td><img src="extras/white_balance/cathedral_128_128_128.jpg" /></td>
+                    </tr>
+                    <tr>
+                        <td>(180, 180, 180)</td>
+                        <td><img src="results/monastery.jpg" /></td>
+                        <td><img src="extras/white_balance/monastery_180_180_180.jpg" /></td>
+                    </tr>
+                    <tr>
+                        <td>(150, 150, 150)</td>
+                        <td><img src="results/tobolsk.jpg" /></td>
+                        <td><img src="extras/white_balance/tobolsk_150_150_150.jpg" /></td>
+                    </tr>
+                    <tr>
+                        <td>(128, 128, 128)</td>
+                        <td><img src="results/church.jpg" /></td>
+                        <td><img src="extras/white_balance/church_128_128_128.jpg" /></td>
+                    </tr>
+                    <tr>
+                        <td>(128, 128, 128)</td>
+                        <td><img src="results/_bird_cherry_tree.jpg" /></td>
+                        <td><img src="extras/white_balance/_bird_cherry_tree_128_128_128.jpg" />
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Populate table of contents -->
+    <script>
+        let first = true
+        const toc = document.getElementById('table-of-contents')
+        const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6')
+        for (let i = 0; i < headings.length; ++i) {
+            const node = headings[i]
+
+            // If no id, nothing to link to so skip
+            if (!node.id) continue
+            
+            // Different class for h1, h2, etc
+            const tag = node.tagName.toLowerCase()
+            let linkClassName = ''
+            if (tag === 'h1') {
+                // Don't add divider before first item
+                if (first) {
+                    first = false
+                } else {
+                    const divider = document.createElement('div')
+                    divider.classList.add('divider')
+                    toc.appendChild(divider)
+                }
+                linkClassName = 'title'
+            } else if (tag === 'h2') {
+                linkClassName = 'section'
+            }
+
+            // Add link with correct class/formatting and same text content as
+            // its corresponding heading
+            const link = document.createElement('a')
+            link.classList.add(linkClassName)
+            link.href = '#' + node.id
+            link.innerHTML = node.innerHTML
+            toc.appendChild(link)
+        }
+    </script>
+</body>
+
+</html>
