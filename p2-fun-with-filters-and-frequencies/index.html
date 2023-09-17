@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>CS 180 Project 2</title>
+
+    <link rel="stylesheet" href="style.css?">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&family=Open+Sans:ital,wght@0,400;0,700;1,600&display=swap"
+        rel="stylesheet">
+
+    <script defer src="https://use.fontawesome.com/releases/v5.7.2/js/all.js"
+        integrity="sha384-0pzryjIRos8mFBWMzSSZApWtPl/5++eIfzYmTgBBmXYdhvxPc+XcFEk+zJwDgWbP"
+        crossorigin="anonymous"></script>
+    <script src="offsets.js"></script>
+</head>
+
+<body>
+    <!-- Title -->
+    <div class="navbar clear nav-top">
+        <div class="row" style="text-align: center;">
+            <h1>CS 180 Project 2: Fun with Filters and Frequencies</h1>
+            <b>By Jeffrey Tan</b>
+        </div>
+    </div>
+
+    <div class="container clear">
+        <div class="row wrapper">
+            <!-- Table of Contents -->
+            <div class="sidepanel" id="table-of-contents"></div>
+
+            <!-- Contents -->
+            <div class="right-col">
+                <div class="gallery" style="text-align: center;">
+                    <img src="results/part2_4/smiling_cat.png" />
+                </div>
+
+
+
+                <h1 id="introduction">Introduction</h1>
+                <p>
+                    This project explores different ways of using frequencies to process and even combine images in interesting ways. For instance, an image can be sharpened by filtering and emphasizing its highest frequencies. Edges can be extracted using finite difference kernels. Hybrid images can be produced by combining the high frequencies from one image with the low frequencies of another. Lastly, images can be blended together at various frequencies using Gaussian and Laplacian stacks.
+                </p>
+
+                <h1 id="finite-difference">Finite Difference Operator</h1>
+
+                <h2 id="finite-difference-approach">Approach</h2>
+                <p>
+                    For each of the two partial derivatives, a finite difference kernel was created as a Numpy array. <code>dx_kernel = np.array([[1, -1]])</code> and <code>dy_kernel = np.array([[1], [-1]])</code>. These two kernels were used to convolve the original image using <code>scipy.signal.convolve2d</code> with <code>mode='same'</code> to produce images of their respective partial derivatives. These values were combined into a single edge image by calculating the pixel-wise magnitude of the gradient using <code>np.sqrt(dx_deriv ** 2 + dy_deriv ** 2)</code>. This is essentially treating the respective pixel values of the two partial-derivative images as elements in the gradient vector and taking its L2 norm as the final pixel value.
+                </p>
+
+                <h2 id="finite-difference-results">Results</h2>
+                <table>
+                    <tr>
+                        <th width="100px"></th>
+                        <th>dx</th>
+                        <th>dy</th>
+                    </tr>
+                    <tr>
+                        <td>Derivative</td>
+                        <td><img src="results/part1/cameraman_dx_gradient.png"/></td>
+                        <td><img src="results/part1/cameraman_dy_gradient.png"/></td>
+                    </tr>
+                    <tr>
+                        <td>Binarized</td>
+                        <td><img src="results/part1/cameraman_dx_binarized.png"/></td>
+                        <td><img src="results/part1/cameraman_dy_binarized.png"/></td>
+                    </tr>
+                </table>
+
+                <table>
+                    <tr>
+                        <th>Combined Gradient</th>
+                        <th>Combined Binarized</th>
+                    </tr>
+                    <tr>
+                        <td><img src="results/part1/cameraman_combined_gradient.png"/></td>
+                        <td><img src="results/part1/cameraman_combined_binarized.png"/></td>
+                    </tr>
+                </table>
+
+                <h1 id="derivative-of-gaussian">Derivative of Gaussian (DoG) Filter</h2>
+
+                <h2 id="derivative-of-gaussian-blurred-finite-difference">Blurred Finite Difference</h2>
+                <p>
+                    First, the image is blurred using a Gaussian kernel of size <code>10</code> created using <code>cv2.getGaussianKernel</code>. In order to ensure the convolution produces minimal artifacts, at least 6 standard deviations must fit inside the kernel. Thus, I chose <code>sigma = kernel_size / 6</code>. The blurred image is then passed through the same finite difference function used above.
+                </p>
+                <p>
+                    There are some noticeable differences in the final result using this approach. For one, the binarized edges are thicker and rounder than before. Also, the small bits of noise at the bottom of the image as well as the fine details inside the camera are completely gone.
+                </p>
+
+                <table>
+                    <tr>
+                        <th width="100px"></th>
+                        <th>dx</th>
+                        <th>dy</th>
+                    </tr>
+                    <tr>
+                        <td>Derivative</td>
+                        <td><img src="results/part1/cameraman_blurred_dx_gradient.png"/></td>
+                        <td><img src="results/part1/cameraman_blurred_dy_gradient.png"/></td>
+                    </tr>
+                    <tr>
+                        <td>Binarized</td>
+                        <td><img src="results/part1/cameraman_blurred_dx_binarized.png"/></td>
+                        <td><img src="results/part1/cameraman_blurred_dy_binarized.png"/></td>
+                    </tr>
+                </table>
+
+                <table>
+                    <tr>
+                        <th>Combined Gradient</th>
+                        <th>Combined Binarized</th>
+                    </tr>
+                    <tr>
+                        <td><img src="results/part1/cameraman_blurred_combined_gradient.png"/></td>
+                        <td><img src="results/part1/cameraman_blurred_combined_binarized.png"/></td>
+                    </tr>
+                </table>
+
+                <h2 id="derivative-of-gaussian-dog">Derivative of Gaussian</h2>
+                <p>
+                    In this approach, the Gaussian kernels used to blur the image are instead convolved beforehand using the <code>dx</code> and <code>dy</code> finite difference kernels to produce <code>dx_gaussian</code> and <code>dy_gaussian</code>. These kernels are the partial derivatives of the gaussian kernel with respect to <code>x</code> and <code>y</code>. Then, the image is convolved using <code>dx_gaussian</code> and <code>dy_gaussian</code> to produce the partial derivative images, which are then combined into a single edge image using the same approach as above.
+                </p>
+
+                <table>
+                    <tr>
+                        <th width="100px"></th>
+                        <th>dx</th>
+                        <th>dy</th>
+                    </tr>
+                    <tr>
+                        <td>Derivative</td>
+                        <td><img src="results/part1/cameraman_preconvolved_dx_gradient.png"/></td>
+                        <td><img src="results/part1/cameraman_preconvolved_dy_gradient.png"/></td>
+                    </tr>
+                    <tr>
+                        <td>Binarized</td>
+                        <td><img src="results/part1/cameraman_preconvolved_dx_binarized.png"/></td>
+                        <td><img src="results/part1/cameraman_preconvolved_dy_binarized.png"/></td>
+                    </tr>
+                </table>
+
+                <table>
+                    <tr>
+                        <th>Combined Gradient</th>
+                        <th>Combined Binarized</th>
+                    </tr>
+                    <tr>
+                        <td><img src="results/part1/cameraman_preconvolved_combined_gradient.png"/></td>
+                        <td><img src="results/part1/cameraman_preconvolved_combined_binarized.png"/></td>
+                    </tr>
+                </table>
+
+
+                <h2 id="derivative-of-gaussian-comparison">Comparison</h2>
+                <p>
+                    Apart from very slight differences in the length and shape of short edges caused by noise, the results from the two approaches are essentially identical.
+                </p>
+                <table>
+                    <tr>
+                        <th>Blurred Finite Difference</th>
+                        <th>Derivative of Gaussian</th>
+                    </tr>
+                    <tr>
+                        <td><img src="results/part1/cameraman_blurred_combined_binarized.png"/></td>
+                        <td><img src="results/part1/cameraman_preconvolved_combined_binarized.png"/></td>
+                    </tr>
+                </table>
+
+
+
+
+
+
+
+                <h1 id="image-sharpening">Image Sharpening</h1>
+                
+                <h2 id="image-sharpening-approach">Approach</h2>
+                <p>
+                    In order to sharpen an image <code>target</code>, the image is convolved with a gaussian kernel in order to filter out higher frequencies, resulting in a blurred image <code>blurred</code>. The high-frequency <code>details</code> are then calculated through <code>details = target - blurred</code>, which removes all lower frequency features from the original image. These details are then emphasized in the final image through <code>result = target + alpha * details</code> where <code>alpha</code> is a constant sharpening factor.
+                </p>
+                
+                <h2 id="image-sharpening-taj">Taj Mahal</h2>
+                <p>
+                    The image of the Taj Mahal was sharpened using <code>alpha = 0.75</code>. As shown below, the edges of the arches and tiles were emphasized, as well as the silhouettes of the trees.
+                </p>
+
+                <div class="gallery">
+                    <img src="results/part2_1/taj_details.png" />
+                </div>
+                
+                <table>
+                    <tr>
+                        <th>Original</th>
+                        <th>Sharpened</th>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="data/taj.jpg" />
+                        </td>
+                        <td>
+                            <img src="results/part2_1/taj_sharpened.png" />
+                        </td>
+                    </tr>
+                </table>
+                
+                
+                <h2 id="image-sharpening-natural-landscape">Natural Landscape</h2>
+                <p>
+                    The natural landscape image was sharpened using <code>alpha = 1.0</code>. As shown below, the the silhouettes of the trees as well as the ripples in the water are emphasized by the sharpening procedure.
+                </p>
+
+                <div class="gallery">
+                    <img src="results/part2_1/landscape_details.png" />
+                </div>
+                
+                <table>
+                    <tr>
+                        <th>Original</th>
+                        <th>Sharpened</th>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="data/landscape.png" />
+                        </td>
+                        <td>
+                            <img src="results/part2_1/landscape_sharpened.png" />
+                        </td>
+                    </tr>
+                </table>
+                
+                <h2 id="image-sharpening-blur-then-resharpen">Re-sharpening a Blurred Image</h2>
+
+                <p>
+                    The image of the house was first blurred using <code>kernel_size=10</code> and then sharpened using <code>alpha = 1.0</code>. As shown below, most of the edges in the house's features are emphasized, including those in its reflection in the water. However, the details in the ceiling are not due to them being smoothed out by the initial blurring.
+                </p>
+
+                <div class="gallery">
+                    <img src="data/house.jpeg" />
+                    <img src="results/part2_1/house_details.png" />
+                </div>
+                
+                <p>
+                    The sharpening does a great job on the edges of the house and removes that "smudged" quality of the blurred image. However, because the initial blur smoothed out the finer details in the ceiling and inside the house, the sharpening was unable to recover that lost information.
+                </p>
+                <table>
+                    <tr>
+                        <th>Original (Blurred)</th>
+                        <th>Sharpened</th>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="results/part2_1/house_blurred.png" />
+                        </td>
+                        <td>
+                            <img src="results/part2_1/house_sharpened.png" />
+                        </td>
+                    </tr>
+                </table>
+
+
+
+
+
+
+
+                <h1 id="hybrid-images">Hybrid Images</h1>
+                
+                <h2 id="hybrid-images-approach">Approach</h2>
+                <p>
+                    Two images are taken as input: <code>lo_img</code> and <code>hi_img</code>. A gaussian blur is applied to <code>lo_image</code> using <code>kernel_size = 6 * lo_sigma</code> to produce the image <code>lo</code>. For the higher frequencies, a gaussian blur is applied to <code>hi_image</code> using <code>kernel_size = 6 * hi_sigma</code> to produce <code>hi_blurred</code>. Then, the high frequencies are extracted <code>hi = hi_img - hi_blurred</code>. Finally, <code>lo</code> and <code>hi</code> are average together pixel-wise to produce the hybrid image.
+                </p>
+
+                <h2 id="hybrid-images-tobey-glasses">Tobey's Glasses</h2>
+                <p>
+                    Blurring was performed using <code>lo_sigma = 5</code> and <code>hi_sigma = 3</code>.
+                </p>
+
+                <table>
+                    <tr>
+                        <th>Low Frequency Image</th>
+                        <th>High Frequency Image</th>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="data/tobey_no_glasses.jpeg" />
+                        </td>
+                        <td>
+                            <img src="data/tobey_glasses.jpeg"/>
+                        </td>
+                    </tr>
+                </table>
+
+                <div class="gallery">
+                    <table>
+                        <tr>
+                            <th>Hybrid Image</th>
+                        </tr>
+                        <tr>
+                            <td><img src="results/part2_2/tobey.png" /></td>
+                        </tr>
+                    </table>
+                </div>
+
+                <h2 id="hybrid-images-mr-incredible">Mr. Incredible</h2>
+
+                <p>
+                    Blurring was performed using <code>lo_sigma = 6</code> and <code>hi_sigma = 6</code>.
+                </p>
+
+                <table>
+                    <tr>
+                        <th>Low Frequency Image</th>
+                        <th>High Frequency Image</th>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="data/mr_incredible_traumatized.jpg" />
+                        </td>
+                        <td>
+                            <img src="data/mr_incredible.jpg"/>
+                        </td>
+                    </tr>
+                </table>
+
+                <div class="gallery">
+                    <table>
+                        <tr>
+                            <th>Hybrid Image</th>
+                        </tr>
+                        <tr>
+                            <td><img src="results/part2_2/mr_incredible.png" /></td>
+                        </tr>
+                    </table>
+                </div>
+
+                <h2 id="hybrid-images-fourier-transform">Fourier Transform</h2>
+
+                <p>
+                    For the Mr. Incredible hybrid image, Fourier transforms were applied to the original input images, the filtered images <code>lo</code> and <code>hi</code>, and the final hybrid image, producing the following graphs:
+                </p>
+
+                <table>
+                    <tr>
+                        <th>Low Frequency Image FFT</th>
+                        <th>Filtered</th>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="results/part2_2/mr_incredible_traumatized_fft.png" />
+                        </td>
+                        <td>
+                            <img src="results/part2_2/mr_incredible_traumatized_filtered_fft.png" />
+                        </td>
+                    </tr>
+                </table>
+
+                <table>
+                    <tr>
+                        <th>High Frequency Image FFT</th>
+                        <th>Filtered</th>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="results/part2_2/mr_incredible_fft.png"/>
+                        </td>
+                        <td>
+                            <img src="results/part2_2/mr_incredible_filtered_fft.png"/>
+                        </td>
+                    </tr>
+                </table>
+
+                <div class="gallery">
+                    <table>
+                        <tr>
+                            <th>Hybrid Image FFT</th>
+                        </tr>
+                        <tr>
+                            <td>
+                                <img src="results/part2_2/mr_incredible_combined_fft.png" />
+                            </td>
+                        </tr>
+                    </table>    
+                </div>
+
+                <h2 id="hybrid-images-love-and-war">Love and War (Failure)</h2>
+
+                <p>
+                    Blurring was performed using <code>lo_sigma = 15</code> and <code>hi_sigma = 3</code>. With hybrid images composed of text, I found it difficult to balance between blurring and readability. These were the best results I could achieve after a lot of fine-tuning, but even from a distance it is rather hard to decipher the blurred text. If I instead decreased the blurring on the text, it becomes too readable when viewing from a short distance and distracts from the text in the high-frequency image.
+                </p>
+
+                <table>
+                    <tr>
+                        <th>Low Frequency Image</th>
+                        <th>High Frequency Image</th>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="data/war_not_love.jpg" />
+                        </td>
+                        <td>
+                            <img src="data/love_not_war.jpg"/>
+                        </td>
+                    </tr>
+                </table>
+
+                <div class="gallery">
+                    <table>
+                        <tr>
+                            <th>Hybrid Image</th>
+                        </tr>
+                        <tr>
+                            <td><img src="results/part2_2/love_and_war.png" /></td>
+                        </tr>
+                    </table>
+                </div>
+
+
+                <h1 id="gaussian-laplacian-stacks">Gaussian and Laplacian Stacks</h1>
+
+                <h2 id="gaussian-laplacian-stacks-approach">Approach</h2>
+                <p>
+                    At every level of the Gaussian stack, instead of downsampling, the previous level is blurred using a gaussian kernel to produce the next level. Thus, the sizes of the images are the same across all levels. The Laplacian stack <code>l_stack</code> is calculated from the Gaussian stack <code>g_stack</code> such that <code>l_stack[:, :, i] = g_stack[:, :, i] - g_stack[:, :, i+1]</code>. This is accomplished through <code>l_stack = g_stack[:, :, :-1] - g_stack[:, :, 1:]</code>.
+                </p>
+
+                <h2 id="gaussian-laplacian-stacks-results">Results</h2>
+                <p>
+                    From top to bottom, the Laplacian stack images for the apple (left) and orange (right) at levels <code>0</code>, <code>2</code>, and <code>4</code> are shown below:
+                </p>
+                <div class="gallery">
+                    <img src="results/part2_3/laplacian_stacks.png" />
+                </div>
+
+
+
+
+
+                <h1 id="multiresolution-blending">Multiresolution Blending</h1>
+
+                <h2 id="multiresolution-blending-approach">Approach</h2>
+                <p>
+                    The input images <code>left</code> and <code>right</code> are used to generate Laplacian stacks <code>left_l_stack</code> and <code>right_l_stack</code> using the method above. A Gaussian stack <code>mask_g_stack</code> is generated from the mask input image. The mask stack is sliced from level <code>1</code> onwards so that the mask at the new level <code>0</code> is slightly blurred. This prevents an abrupt transition between the two images in the highest frequencies (finest details). To blend the images, for each level <code>i</code> in all three stacks, <code>blended[:, :, i] = (1 - mask_g_stack[:, :, i]) * left_l_stack + mask_g_stack[:, :, i] * right_l_stack</code>. This can be accomplished using the vectorized code <code>blended = (1 - mask_g_stack) * left_l_stack + mask_g_stack * right_l_stack</code>.
+                </p>
+
+                <h2 id="multiresolution-blending-baseketball">Base-ketball</h2>
+                <p>
+                    I'm bad at both :(
+                </p>
+                <table>
+                    <tr>
+                        <th>Input Image #1</th>
+                        <th>Input Image #2</th>
+                        <th>Mask</th>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="data/baseball.png" />
+                        </td>
+                        <td>
+                            <img src="data/basketball.png" />
+                        </td>
+                        <td>
+                            <img src="results/part2_4/base-ketball_mask.png"/>
+                        </td>
+                    </tr>
+                </table>
+
+                <div class="gallery">
+                    <table>
+                        <tr>
+                            <th>Result</th>
+                        </tr>
+                        <tr>
+                            <td><img src="results/part2_4/base-ketball.png" /></td>
+                        </tr>
+                    </table>
+                </div>
+
+
+                <h2 id="multiresolution-blending-smiling-cat">Smiling Cat</h2>
+                <p>They don't always show it, but this is how they really feel when they're around you.</p>
+                <table>
+                    <tr>
+                        <th>Input Image #1</th>
+                        <th>Input Image #2</th>
+                        <th>Mask</th>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="data/cat.png" />
+                        </td>
+                        <td>
+                            <img src="data/smile.png" />
+                        </td>
+                        <td>
+                            <img src="data/smiling_cat_mask.png"/>
+                        </td>
+                    </tr>
+                </table>
+
+                <div class="gallery">
+                    <table>
+                        <tr>
+                            <th>Result</th>
+                        </tr>
+                        <tr>
+                            <td><img src="results/part2_4/smiling_cat.png" /></td>
+                        </tr>
+                    </table>
+                </div>
+
+                <h2 id="multiresolution-blending-roypple">Roypple</h2>
+                <p>My friend Roy has always dreamed of becoming an apple, so I made his wish come true.</p>
+                <table>
+                    <tr>
+                        <th>Input Image #1</th>
+                        <th>Input Image #2</th>
+                        <th>Mask</th>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="data/apple.png" />
+                        </td>
+                        <td>
+                            <img src="data/roy.png" />
+                        </td>
+                        <td>
+                            <img src="data/roy_apple_mask.png"/>
+                        </td>
+                    </tr>
+                </table>
+
+                <div class="gallery">
+                    <table>
+                        <tr>
+                            <th>Result</th>
+                        </tr>
+                        <tr>
+                            <td><img src="results/part2_4/roypple.png" /></td>
+                        </tr>
+                    </table>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Populate table of contents -->
+    <script>
+        let first = true
+        const toc = document.getElementById('table-of-contents')
+        const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6')
+        for (let i = 0; i < headings.length; ++i) {
+            const node = headings[i]
+
+            // If no id, nothing to link to so skip
+            if (!node.id) continue
+            
+            // Different class for h1, h2, etc
+            const tag = node.tagName.toLowerCase()
+            let linkClassName = ''
+            if (tag === 'h1') {
+                // Don't add divider before first item
+                if (first) {
+                    first = false
+                } else {
+                    // Add ToC divider
+                    const divider = document.createElement('div')
+                    divider.classList.add('divider')
+                    toc.appendChild(divider)
+
+                    // Add section divider in page body
+                    const sectionDivider = document.createElement('div')
+                    sectionDivider.classList.add('section-divider')
+                    node.parentNode.insertBefore(sectionDivider, node)
+                }
+                linkClassName = 'title'
+            } else if (tag === 'h2') {
+                linkClassName = 'section'
+            }
+
+            // Add link with correct class/formatting and same text content as
+            // its corresponding heading
+            const link = document.createElement('a')
+            link.classList.add(linkClassName)
+            link.href = '#' + node.id
+            link.innerHTML = node.innerHTML
+            toc.appendChild(link)
+        }
+    </script>
+</body>
+
+</html>
