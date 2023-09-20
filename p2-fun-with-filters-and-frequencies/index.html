@@ -446,9 +446,9 @@
                     The input images <code>left</code> and <code>right</code> are used to generate Laplacian stacks <code>left_l_stack</code> and <code>right_l_stack</code> using the method above. A Gaussian stack <code>mask_g_stack</code> is generated from the mask input image. The mask stack is sliced from level <code>1</code> onwards so that the mask at the new level <code>0</code> is slightly blurred. This prevents an abrupt transition between the two images in the highest frequencies (finest details). To blend the images, for each level <code>i</code> in all three stacks, <code>blended[:, :, i] = (1 - mask_g_stack[:, :, i]) * left_l_stack + mask_g_stack[:, :, i] * right_l_stack</code>. This can be accomplished using the vectorized code <code>blended = (1 - mask_g_stack) * left_l_stack + mask_g_stack * right_l_stack</code>.
                 </p>
 
-                <h2 id="multiresolution-blending-baseketball">Base-ketball</h2>
+                <h2 id="multiresolution-blending-watermelon-pizza">Watermelon Pizza</h2>
                 <p>
-                    I'm bad at both :(
+                    Is this better than pineapple on pizza?
                 </p>
                 <table>
                     <tr>
@@ -458,13 +458,13 @@
                     </tr>
                     <tr>
                         <td>
-                            <img src="data/baseball.png" />
+                            <img src="data/pizza.png" />
                         </td>
                         <td>
-                            <img src="data/basketball.png" />
+                            <img src="data/watermelon.png" />
                         </td>
                         <td>
-                            <img src="results/part2_4/base-ketball_mask.png"/>
+                            <img src="results/part2_4/watermelon_pizza_mask.png"/>
                         </td>
                     </tr>
                 </table>
@@ -475,7 +475,7 @@
                             <th>Result</th>
                         </tr>
                         <tr>
-                            <td><img src="results/part2_4/base-ketball.png" /></td>
+                            <td><img src="results/part2_4/watermelon_pizza.png" /></td>
                         </tr>
                     </table>
                 </div>
