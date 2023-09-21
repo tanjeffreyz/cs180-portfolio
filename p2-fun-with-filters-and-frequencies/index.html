@@ -424,7 +424,7 @@
 
                 <h2 id="gaussian-laplacian-stacks-approach">Approach</h2>
                 <p>
-                    At every level of the Gaussian stack, instead of downsampling, the previous level is blurred using a gaussian kernel to produce the next level. Thus, the sizes of the images are the same across all levels. The Laplacian stack <code>l_stack</code> is calculated from the Gaussian stack <code>g_stack</code> such that <code>l_stack[:, :, i] = g_stack[:, :, i] - g_stack[:, :, i+1]</code>. This is accomplished through <code>l_stack = g_stack[:, :, :-1] - g_stack[:, :, 1:]</code>.
+                    At every level of the Gaussian stack, instead of downsampling, the previous level is blurred using a gaussian kernel to produce the next level. Thus, the sizes of the images are the same across all levels. The Laplacian stack <code>l_stack</code> is calculated from the Gaussian stack <code>g_stack</code> such that <code>l_stack[:, :, i] = g_stack[:, :, i] - g_stack[:, :, i+1]</code>. This is accomplished through <code>l_stack = g_stack[:, :, :-1] - g_stack[:, :, 1:]</code>. The last level of the Laplacian stack is directly taken from the last level of the Gaussian stack, and stacked with the rest of the Laplacian stack. Thus, the Laplacian and Gaussian stacks end up with the same number of levels.
                 </p>
 
                 <h2 id="gaussian-laplacian-stacks-results">Results</h2>
@@ -443,7 +443,7 @@
 
                 <h2 id="multiresolution-blending-approach">Approach</h2>
                 <p>
-                    The input images <code>left</code> and <code>right</code> are used to generate Laplacian stacks <code>left_l_stack</code> and <code>right_l_stack</code> using the method above. A Gaussian stack <code>mask_g_stack</code> is generated from the mask input image. The mask stack is sliced from level <code>1</code> onwards so that the mask at the new level <code>0</code> is slightly blurred. This prevents an abrupt transition between the two images in the highest frequencies (finest details). To blend the images, for each level <code>i</code> in all three stacks, <code>blended[:, :, i] = (1 - mask_g_stack[:, :, i]) * left_l_stack + mask_g_stack[:, :, i] * right_l_stack</code>. This can be accomplished using the vectorized code <code>blended = (1 - mask_g_stack) * left_l_stack + mask_g_stack * right_l_stack</code>.
+                    The input images <code>left</code> and <code>right</code> are used to generate Laplacian stacks <code>left_l_stack</code> and <code>right_l_stack</code> using the method above. A Gaussian stack <code>mask_g_stack</code> is generated from the mask input image. To blend the images, for each level <code>i</code> in all three stacks, <code>blended[:, :, i] = (1 - mask_g_stack[:, :, i]) * left_l_stack + mask_g_stack[:, :, i] * right_l_stack</code>. This can be accomplished using the vectorized code <code>blended = (1 - mask_g_stack) * left_l_stack + mask_g_stack * right_l_stack</code>.
                 </p>
 
                 <h2 id="multiresolution-blending-watermelon-pizza">Watermelon Pizza</h2>
@@ -469,16 +469,16 @@
                     </tr>
                 </table>
 
-                <div class="gallery">
-                    <table>
-                        <tr>
-                            <th>Result</th>
-                        </tr>
-                        <tr>
-                            <td><img src="results/part2_4/watermelon_pizza.png" /></td>
-                        </tr>
-                    </table>
-                </div>
+                <table>
+                  <tr>
+                      <th>Result</th>
+                      <th>Laplacian Stack</th>
+                  </tr>
+                  <tr>
+                      <td><img src="results/part2_4/watermelon_pizza.png" /></td>
+                      <td><img src="results/part2_4/watermelon_pizza_stack.png" /></td>
+                  </tr>
+                </table>
 
 
                 <h2 id="multiresolution-blending-smiling-cat">Smiling Cat</h2>
@@ -541,6 +541,39 @@
                         </tr>
                         <tr>
                             <td><img src="results/part2_4/roypple.png" /></td>
+                        </tr>
+                    </table>
+                </div>
+
+
+                <h2 id="multiresolution-blending-mona-lisa">Side-eye Mona Lisa</h2>
+                <p>She's definitely judging you, peripheral vision or not.</p>
+                <table>
+                    <tr>
+                        <th>Input Image #1</th>
+                        <th>Input Image #2</th>
+                        <th>Mask</th>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="data/mona_lisa.png" />
+                        </td>
+                        <td>
+                            <img src="data/side_eye_chloe.png" />
+                        </td>
+                        <td>
+                            <img src="data/side_eye_mona_lisa_mask.png"/>
+                        </td>
+                    </tr>
+                </table>
+
+                <div class="gallery">
+                    <table>
+                        <tr>
+                            <th>Result</th>
+                        </tr>
+                        <tr>
+                            <td><img src="results/part2_4/side_eye_mona_lisa.png" /></td>
                         </tr>
                     </table>
                 </div>
