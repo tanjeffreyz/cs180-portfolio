@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>CS 180 Project 3</title>
+
+    <link rel="stylesheet" href="style.css?">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&family=Open+Sans:ital,wght@0,400;0,700;1,600&display=swap"
+        rel="stylesheet">
+
+    <script defer src="https://use.fontawesome.com/releases/v5.7.2/js/all.js"
+        integrity="sha384-0pzryjIRos8mFBWMzSSZApWtPl/5++eIfzYmTgBBmXYdhvxPc+XcFEk+zJwDgWbP"
+        crossorigin="anonymous"></script>
+    <script src="offsets.js"></script>
+</head>
+
+<body>
+    <!-- Title -->
+    <div class="navbar clear nav-top">
+        <div class="row" style="text-align: center;">
+            <h1>CS 180 Project 3: Face Morphing</h1>
+            <b>By Jeffrey Tan</b>
+        </div>
+    </div>
+
+    <div class="container clear">
+        <div class="row wrapper">
+            <!-- Table of Contents -->
+            <div class="sidepanel" id="table-of-contents"></div>
+
+            <!-- Contents -->
+            <div class="right-col">
+                <div class="gallery" style="text-align: center;">
+                    <img src="results/part3/jeffrey_andy.gif" />
+                </div>
+
+
+
+                <h1 id="introduction">Introduction</h1>
+                <p>
+                    This project explores how to smoothly morph between two images by warping the mesh of correspondence points of the two images and then cross-dissolving the colors. Through these two operations, the average face of a population can also be computed, as well as caricatures extrapolated from the average face.
+                </p>
+
+
+
+
+
+
+                <h1 id="defining-correspondences">Defining Correspondences</h1>
+
+                <h2 id="defining-correspondences-approach">Approach</h2>
+                <p>
+                  Corresponding points between the two images were selected using this <a href="https://inst.eecs.berkeley.edu/~cs194-26/fa22/upload/files/proj3/cs194-26-aex/tool.html">correspondence tool</a>. Then, <code>scipy.spatial.Delaunay</code> was used to triangulate each image, producing <code>tri</code>. The result of each triangulations was plotted using <code>plt.triplot(pts[:, 0], pts[:, 1], tri.simplices)</code>.
+                </p>
+
+                <h2 id="defining-correspondences-results">Results</h2>
+                <table>
+                  <tr>
+                    <th>Correspondence Points</th>
+                    <th>Triangulations</th>
+                  </tr>
+                  <tr>
+                    <td>
+                      <img src="results/part1/jeffrey_andy_correspondence.png"/>
+                    </td>
+                    <td>
+                      <img src="results/part1/jeffrey_andy_triangulation.png"/>
+                    </td>
+                  </tr>
+                </table>
+
+
+
+
+
+
+                <h1 id="midway-face">Computing the "Mid-way Face"</h1>
+
+                <h2 id="midway-face-approach">Approach</h2>
+                <p>
+                  The average shape was calculated through a weighted, element-wise average between the correspondence points of the two images using <code>mid_pts = (1.0 - warp_frac) * pts1 + warp_frac * pts2</code>. For the mid-way face, <code>warp_frac=0.5</code>. Then, <code>scipy.spatial.Delaunay</code> was used to triangulate <code>mid_pts</code>, which produces a <code>(N, 3)</code> matrix <code>tri</code> of indices, where <code>N</code> is the number of triangles. 
+                </p>
+                <p>
+                  Using this triangulation, the processes for warping <code>img1</code> and <code>img2</code> are identical. For a given <code>img</code> with correspondence points <code>pts</code>, using <code>tri</code> to index <code>pts</code> (like <code>pts[tri]</code>) substitutes the indices in <code>tri</code> with their respective 2D coordinates and produces a <code>(N, 3, 2)</code> matrix. Let <code>a = mid_pts[tri]</code> and <code>b = pts[tri]</code>. After converting <code>a</code> and <code>b</code> to homogenous coordinates by concatenating a ones matrix, <code>np.linalg.solve(a, b)</code> is used to solve for all <code>N</code> inverse transformation matrices. These matrices transform a triangle in the average shape to the corresponding triangle in <code>img</code>.
+                </p>
+                <p>
+                  Next, for each triangle in <code>mid_pts</code>, all the coordinates <code>tri_pts</code> within this triangle are generated using <code>skimage.draw.polygon</code>. These coordinates are multiplied by the inverse transform matrix <code>inv</code> associated with this triangle to produce a <code>(K, 3)</code> matrix <code>inv_pts = np.matmul(tri_pts, inv_transform)</code>, where <code>K</code> is the number of coordinates within this triangle.
+                </p>
+                <p>
+                  Finally, for each of the pixel coordinates in <code>inv_pts</code>, the final color of that pixel is queried from <code>img</code> using a custom bilinear interpolation function that interpolates between the colors of the four neighboring pixels.
+                </p>
+
+                
+
+                <h2 id="midway-face-results">Results</h2>
+                <table>
+                  <tr>
+                    <th>Me</th>
+                    <th>Andy</th>
+                  </tr>
+                  <tr>
+                    <td>
+                      <img src="data/images/jeffrey.jpg" />
+                    </td>
+                    <td>
+                      <img src="data/images/andy.jpg" />
+                    </td>
+                  </tr>
+                </table>
+
+                <div class="gallery">
+                  <table>
+                    <tr>
+                      <th>Mid-way Face</th>
+                    </tr>
+                    <tr>
+                      <td>
+                        <img src="results/part2/midway.jpg" />
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+
+                <h2 id="midway-face-approach-griddata">Using griddata</h2>
+                <p>
+                  I also tried using <code>scipy.interpolate.griddata</code> to perform the interpolation as an alternative to iterating over all the pixels in each triangle. However, this approach produced holes and weird artifacts in the final image, as shown below. I visualized the coverage of the <code>polygon</code> triangles for the mid-way shape and both source images and found no holes in any of the coverages. I also verified that the calculated inverse transformations accurately mapped between corresponding triangles. I suspect this is a floating point error in <code>griddata</code> when it tries to calculate the convex hull because using <code>method='nearest'</code>, which does not depend on the convex hull, does not produce any holes. However, the resulting warp is jagged and looks far worse than the one produced using bilinear interpolation.
+                </p>
+                <p>
+                  To fix this, I tried passing the entire image into <code>griddata</code>, but that made each function call take far too long to be practical. I also tried widening the source polygon region by a small scale factor, but that proved to be too complicated and messy due to edge cases where the widened polygon extends past the edge of the image.
+                </p>
+                <p>
+                  In the end, I went with the naive approach of iterating over every pixel in the target triangle, which actually ended up being faster than the approach using <code>griddata</code> anyways (<code>5.18s</code> per frame vs <code>7.02s</code> per frame).
+                </p>
+
+                <div class="gallery">
+                  <img src="results/part2/midway_fail.jpg" />
+                </div>
+
+
+
+
+
+
+
+                <h1 id="morph-sequence">The Morph Sequence</h1>
+                
+                <h2 id="morph-sequence-approach">Approach</h2>
+                <p>
+                  Following the weighted-average approach described in the previous section, <code>img1</code> and <code>img2</code> are both warped to a common intermediate shape decided by <code>warp_frac</code>. This time, <code>warp_frac</code> is not constant at <code>0.5</code>. Instead, over the course of the video, <code>warp_frac</code> linearly increases from <code>0.0</code> to <code>1.0</code>.
+                </p>
+                <p>
+                  Now that both images have the same shape, their pixel color values are cross-dissolved using a simple weighted average determined by <code>dissolve_frac</code> to produce the final image <code>result = (1 - dissolve_frac) * warped_img1 + dissolve_frac * warped_img2</code>. Similarly, <code>dissolve_frac</code> also increases linearly from <code>0.0</code> to <code>1.0</code> over the course of the video.
+                </p>
+
+                <h2 id="morph-sequence-results">Results</h2>
+                <div class="gallery">
+                  <img src="results/part3/jeffrey_andy.gif"/>
+                </div>
+
+                
+
+
+
+
+
+                <h1 id="mean-population">The "Mean face" of a Population</h1>
+                
+                <h2 id="mean-population-approach">Approach</h2>
+                <p>
+                  The average shape <code>mid_pts</code> of the population is calculated by elementwise-averaging the coordinates of corresponding triangles across all faces in the population. Then, using the same warping function above, every face in the population is warped to fit <code>mid_pts</code>. Lastly, the RGB values of every warped face are averaged together to form the final average face of the population.
+                </p>
+
+                <h2 id="mean-population-results">Results</h2>
+                <table>
+                  <tr>
+                    <th>Average Face</th>
+                    <th>Me &rarr; Average Face</th>
+                    <th>Average Face &rarr; Me</th>
+                  </tr>
+                  <tr>
+                    <td>
+                      <img src="results/part4/mean_dane.png" />
+                    </td>
+                    <td>
+                      <img src="results/part4/warped_jeffrey.png" />
+                    </td>
+                    <td>
+                      <img src="results/part4/warped_dane.png" />
+                    </td>
+                  </tr>
+                </table>
+
+                <h2 id="mean-population-examples">Examples</h2>
+                Here are some examples of faces in the dataset warped to fit the shape of the average face:
+
+                <div class="gallery">
+                  <img src="results/part4/examples/00.png" />
+                  <img src="results/part4/examples/01.png" />
+                  <img src="results/part4/examples/02.png" />
+                  <img src="results/part4/examples/03.png" />
+                </div>
+
+
+
+
+
+                <h1 id="caricatures">Caricatures: Extrapolating from the Mean</h1>
+                
+                <h2 id="caricatures-approach">Approach</h2>
+                <p>
+                  After computing the shape of the average face, extrapolation is accomplished using this simple formula: <code>caricature = scale * (me - avg) + avg</code> where <code>scale > 1.0</code>. This exaggerates any differences in shape between me and the average face, thus creating a caricature. Rearranging and grouping the terms in this formula actually shows that <code>caricature = scale * me + (1 - scale) * avg</code>. This is exactly the same weighted average formula used for warping between two images except now <code>scale</code> can be greater than <code>1.0</code>! Thus, the same warping function described in previous parts is used to create the caricature below (<code>warp_frac=1.75</code> and <code>dissolve_frac=0.0</code>).
+                </p>
+
+                <h2 id="caricatures-results">Results</h2>
+                As shown below, the caricature emphasizes any differences in shape between my face and the average face. In my caricature, my eyes are smaller, eyebrows are more raised, nose is wider, and mouth is narrower.
+                
+                <div class="gallery">
+                  <img src="results/part5/caricature_jeffrey_dane.png"/>
+                </div>
+
+
+
+
+                <h1 id="bells-and-whistles">Bells and Whistles</h1>
+
+                <h2 id="bells-and-whistles-ethnicity">Morphing Ethnicity</h2>
+                <p>
+                  The following morphs were created with an image of the average white male found online. To only morph appearance, I used <code>warp_frac=0.0</code> and <code>dissolve_frac=0.5</code>. This morphs the shape of the average white male image to the shape my face and cross dissolves the colors to change appearance without changing the shape of my face. To only morph shape, I used <code>warp_frac=0.5</code> and <code>dissolve_frac=0.0</code>. This morphs the shape of my face towards that of the average white male but does not cross dissolve any colors, which preserves my original appearance.
+                  For the morph of both appearance and shape, I used <code>warp_frac=0.5</code> and <code>dissolve_frac=0.5</code>.
+                </p>
+
+                <table>
+                  <tr>
+                    <th>Me</th>
+                    <th>Average White Male</th>
+                  </tr>
+                  <tr>
+                    <td>
+                      <img src="data/images/jeffrey_white.png" />
+                    </td>
+                    <td>
+                      <img src="data/images/average_white_male.png" />
+                    </td>
+                  </tr>
+                </table>
+                
+                <table>
+                  <tr>
+                    <th>Appearance Only</th>
+                    <th>Shape Only</th>
+                    <th>Both</th>
+                  </tr>
+                  <tr>
+                    <td>
+                      <img src="results/bells_and_whistles/jeffrey_white_male_appearance.jpg" />
+                    </td>
+                    <td>
+                      <img src="results/bells_and_whistles/jeffrey_white_male_shape.jpg" />
+                    </td>
+                    <td>
+                      <img src="results/bells_and_whistles/jeffrey_white_male_both.jpg" />
+                    </td>
+                  </tr>
+                </table>
+
+                <div class="gallery">
+                  <table>
+                    <tr>
+                      <th>Video</th>
+                    </tr>
+                    <tr>
+                      <td><img src="results/bells_and_whistles/jeffrey_white_male.gif" /></td>
+                    </tr>
+                  </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Populate table of contents -->
+    <script>
+        let first = true
+        const toc = document.getElementById('table-of-contents')
+        const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6')
+        for (let i = 0; i < headings.length; ++i) {
+            const node = headings[i]
+
+            // If no id, nothing to link to so skip
+            if (!node.id) continue
+            
+            // Different class for h1, h2, etc
+            const tag = node.tagName.toLowerCase()
+            let linkClassName = ''
+            if (tag === 'h1') {
+                // Don't add divider before first item
+                if (first) {
+                    first = false
+                } else {
+                    // Add ToC divider
+                    const divider = document.createElement('div')
+                    divider.classList.add('divider')
+                    toc.appendChild(divider)
+
+                    // Add section divider in page body
+                    const sectionDivider = document.createElement('div')
+                    sectionDivider.classList.add('section-divider')
+                    node.parentNode.insertBefore(sectionDivider, node)
+                }
+                linkClassName = 'title'
+            } else if (tag === 'h2') {
+                linkClassName = 'section'
+            }
+
+            // Add link with correct class/formatting and same text content as
+            // its corresponding heading
+            const link = document.createElement('a')
+            link.classList.add(linkClassName)
+            link.href = '#' + node.id
+            link.innerHTML = node.innerHTML
+            toc.appendChild(link)
+        }
+    </script>
+</body>
+
+</html>
