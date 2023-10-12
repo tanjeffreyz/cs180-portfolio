@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>CS 180 Project 4A</title>
+
+    <link rel="stylesheet" href="style.css?">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&family=Open+Sans:ital,wght@0,400;0,700;1,600&display=swap"
+        rel="stylesheet">
+
+    <script defer src="https://use.fontawesome.com/releases/v5.7.2/js/all.js"
+        integrity="sha384-0pzryjIRos8mFBWMzSSZApWtPl/5++eIfzYmTgBBmXYdhvxPc+XcFEk+zJwDgWbP"
+        crossorigin="anonymous"></script>
+    <script src="offsets.js"></script>
+</head>
+
+<body>
+    <!-- Title -->
+    <div class="navbar clear nav-top">
+        <div class="row" style="text-align: center;">
+            <h1>CS 180 Project 4A: Image Warping and Mosaicing</h1>
+            <b>By Jeffrey Tan</b>
+        </div>
+    </div>
+
+    <div class="container clear">
+        <div class="row wrapper">
+            <!-- Table of Contents -->
+            <div class="sidepanel" id="table-of-contents"></div>
+
+            <!-- Contents -->
+            <div class="right-col">
+                <div style="text-align: center;">
+                    <img src="results/4_mosaic/bangkok.png" width="100%"/>
+                </div>
+
+
+
+                <h1 id="introduction">Introduction</h1>
+                <p>
+                    This project explores how to warp and stitch images together into mosaics using manually labeled correspondence points. This same warping operation can also be used rectify images and fit them to different perspectives.
+                </p>
+
+                <h1 id="shoot-the-pictures">Shoot the Pictures</h1>
+
+                <h2 id="shoot-approach">Approach</h2>
+                <p>
+                  Since I did not have a tripod, I balanced my phone on top of my water bottle and turned the water bottle to simulate a tripod. Long-pressing the screen locked the exposure and focus of the camera, which allowed me to take far more consistent photos and stitch more convincing mosaics.
+                </p>
+
+                <h2 id="shoot-failures">Failures</h2>
+                <p>
+                  At first, I took pictures by holding my phone in front of me and turning my body. While this was still fine for aligning objects far away, the non-zero turn radius meant that the perspectives did not share a common center, and this error was amplified for nearby objects, such as the tree in the mosaic below. The error made aligning these closer objects while keeping the distant objects aligned impossible:
+                </p>
+                <div class="gallery">
+                  <img src="results/1_homography/failure.png"/>
+                </div>
+                
+
+
+
+
+
+
+
+                <h1 id="homography">Recover Homographies</h1>
+                <h2 id="homography-approach">Approach</h2>
+                <p>
+                  I used the same <a href="https://inst.eecs.berkeley.edu/~cs194-26/fa22/upload/files/proj3/cs194-26-aex/tool.html">correspondence tool</a> used in Project 3 to label matching features between each pair of images in the mosaic. After obtaining the correspondences <code>src_pts</code> for the source image and <code>trg_pts</code> for the target image, I used the SVD approach described in <a href="https://cseweb.ucsd.edu/classes/wi07/cse252a/homography_estimation/homography_estimation.pdf">this paper</a> to calculate the homography matrix. For each pair of correspondence points <code>(x1, y1)</code> and <code>(x2, y2)</code>, two vectors are created following the formula below:
+                </p>
+                <div class="gallery">
+                  <img src="results/1_homography/homography_equations.png" />
+                </div>
+                <p>
+                  These two vectors are derived from eliminating the scale factor <code>w'</code> in the target homogenous coordinates. Afterwards, these vectors are stacked into a matrix <code>A</code>, which is then passed through <code>np.linalg.svd</code> to obtain <code>S</code>, <code>U</code>, and <code>Vt</code>. The last row <code>v</code> of <code>Vt</code> (last column of <code>V</code>) corresponds with the smallest singular value and is taken to be the elements of the flattened homography matrix. Lastly, <code>v</code> is reshaped into a <code>3x3</code> matrix <code>H</code> and each of its elements is divided by the bottom-right-most element to unscale the transform.
+                </p>
+
+
+
+
+                <h1 id="warp">Warp the Images</h1>
+                <h2 id="warp-approach">Approach</h2>
+                <p>
+                  For each pair of images, after calculating the homography matrix <code>H</code>, the correspondences in the source image <code>src_img</code> are warped to fit those of the target image <code>trg_img</code> using a similar approach to the one used in Project 3. First, the points of bounding box <code>src_bounds</code> represented by the four corners of the image are stacked row-by-row into a matrix of homogeneous coordinates. These bounds are then warped to the bounds of the resulting image by applying the homography matrix like so: <code>trg_bounds = src_bounds @ H</code>. Next, <code>skimage.draw.polygon</code> is used to list all pixel locations <code>trg_pts</code> in the quadrilateral bounded by <code>trg_bounds</code>. For each pixel in <code>trg_pts</code>, the inverse transform <code>H_inv = np.linalg.inv(H)</code> is applied by doing <code>inv_pts = trg_pts @ H_inv</code>. At each point in <code>inv_pts</code>, the neighboring pixel values in the original image <code>src_img</code> are sampled using bilinear interpolation to produce the final pixel value at that pixel in the warped image.
+                </p>
+
+                <h2 id="warp-rectify">Rectifying Images</h2>
+                <p>
+                  In order to rectify an image, four correspondences <code>src_pts</code> on a rectangular object were marked on the input image, and the target correspondences <code>trg_pts</code> were manually determined to form a rectangle in the center of the final rectified image. The warping algorithm described above is then used to warp the input image such that the face of the rectangular object is directly facing the camera.
+                </p>
+                <table>
+                  <tr>
+                    <th>Original</th>
+                    <th>Rectified</th>
+                  </tr>
+                  <tr>
+                    <td>
+                      <img src="data/rectify/macbook.png"/>
+                    </td>
+                    <td>
+                      <img src="results/3_rectify/macbook.png" />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <img src="data/rectify/monitor.png"/>
+                    </td>
+                    <td>
+                      <img src="results/3_rectify/monitor.png" />
+                    </td>
+                  </tr>
+                </table>
+
+
+
+
+
+                <h1 id="blend">Blend the Images into Mosaics</h1>
+                <h2 id="blend-approach">Approach</h2>
+                <p>
+                  In order to produce a mosaic, the images in the mosaic were first organized into a tree such that image <code>A</code> is the parent of <code>B</code> if the correspondences in image <code>B</code> needs to be warped to fit image <code>A</code>. The correspondence points generated from the correspondence tool represents a directed edge from <code>B</code> to <code>A</code>. The root node is the unwarped reference image at the center of the mosaic. The images and correspondence points are loaded while building the tree, and for each node <code>n</code>, the "delta" homography matrix <code>delta_H</code> is computed by using its own correspondence points <code>n.pts</code> and its parents correspondence points <code>n.parent.pts</code>. Then, its final homography matrix <code>n.H</code> is computed by multiplying <code>n.parent.H @ delta_H</code>. This chaining of homography matrices allows the mosaicing of images that are not directly linked by correspondence points. When rendering the mosaic, the nodes in the mosaic tree are processed in BFS order starting at the root so that images towards the edges of the mosaic are overlayed on top of those near the center.
+                </p>
+                <p>
+                  After warping an image to its final orientation within the mosaic, it is blended with the rest of the mosaic using the same Laplacian and Gaussian stack used in Project 2. The irregular mask used in the blend is derived from the final shape of the warped image and the blend is performed with <code>num_levels=2</code> and <code>kernel_size=25</code> with <code>sigma</code> scaled accordingly.
+                </p>
+
+                <h2 id="blend-shortcomings">Shortcomings</h2>
+                <p>
+                  While the tree approach to mosaicing sounds good in theory, floating point error and rounding to discrete pixel positions causes error to accumulate. This results in the images further out near the edges of the mosaic to fall slightly out of alignment, even though their pair-wise alignments were verified to be correct. This is something I want to look into further in Part B of this project, but due to time constraints, I am sticking with mosaics of at most 3 images for now.
+                </p>
+
+
+                <h2 id="blend-university">University Hall</h2>
+                <table>
+                  <tr>
+                    <th>Root Image</th>
+                    <th>Right Child</th>
+                  </tr>
+                  <tr>
+                    <td>
+                      <img src="data/university_hall/IMG_4651.png" />
+                    </td>
+                    <td>
+                      <img src="data/university_hall/IMG_4652.png" />
+                    </td>
+                  </tr>
+                </table>
+                <table>
+                  <tr>
+                    <th>Mosaic</th>
+                  </tr>
+                  <tr>
+                    <td>
+                      <img src="results/4_mosaic/university_hall.png" />
+                    </td>
+                  </tr>
+                </table>
+
+                <h2 id="blend-home">Home</h2>
+                <table>
+                  <tr>
+                    <th>Left Child</th>
+                    <th>Root Image</th>
+                  </tr>
+                  <tr>
+                    <td>
+                      <img src="data/home/IMG_4658.png" />
+                    </td>
+                    <td>
+                      <img src="data/home/IMG_4659.png" />
+                    </td>
+                  </tr>
+                </table>
+                <table>
+                  <tr>
+                    <th>Mosaic</th>
+                  </tr>
+                  <tr>
+                    <td>
+                      <img src="results/4_mosaic/home.png" />
+                    </td>
+                  </tr>
+                </table>
+
+
+                <h2 id="blend-bangkok">Bangkok Noodles & Thai BBQ</h2>
+                <table>
+                  <tr>
+                    <th>Left Child</th>
+                    <th>Root Image</th>
+                    <th>Right Child</th>
+                  </tr>
+                  <tr>
+                    <td>
+                      <img src="data/bangkok/IMG_4653.png" />
+                    </td>
+                    <td>
+                      <img src="data/bangkok/IMG_4654.png" />
+                    </td>
+                    <td>
+                      <img src="data/bangkok/IMG_4655.png" />
+                    </td>
+                  </tr>
+                </table>
+                <table>
+                  <tr>
+                    <th>Mosaic</th>
+                  </tr>
+                  <tr>
+                    <td>
+                      <img src="results/4_mosaic/bangkok.png" />
+                    </td>
+                  </tr>
+                </table>
+
+
+                <h1 id="reflection">Reflection</h1>
+                <p>
+                  Visualizing how the forward and inverse homography matrices transform the input was tricky but fun, and it was interesting to learn that homography matrices can be chained together to link images that do not share any correspondences at all.
+                </p>
+
+        </div>
+    </div>
+
+    <!-- Populate table of contents -->
+    <script>
+        let first = true
+        const toc = document.getElementById('table-of-contents')
+        const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6')
+        for (let i = 0; i < headings.length; ++i) {
+            const node = headings[i]
+
+            // If no id, nothing to link to so skip
+            if (!node.id) continue
+            
+            // Different class for h1, h2, etc
+            const tag = node.tagName.toLowerCase()
+            let linkClassName = ''
+            if (tag === 'h1') {
+                // Don't add divider before first item
+                if (first) {
+                    first = false
+                } else {
+                    // Add ToC divider
+                    const divider = document.createElement('div')
+                    divider.classList.add('divider')
+                    toc.appendChild(divider)
+
+                    // Add section divider in page body
+                    const sectionDivider = document.createElement('div')
+                    sectionDivider.classList.add('section-divider')
+                    node.parentNode.insertBefore(sectionDivider, node)
+                }
+                linkClassName = 'title'
+            } else if (tag === 'h2') {
+                linkClassName = 'section'
+            }
+
+            // Add link with correct class/formatting and same text content as
+            // its corresponding heading
+            const link = document.createElement('a')
+            link.classList.add(linkClassName)
+            link.href = '#' + node.id
+            link.innerHTML = node.innerHTML
+            toc.appendChild(link)
+        }
+    </script>
+</body>
+
+</html>

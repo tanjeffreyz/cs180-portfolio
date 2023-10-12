@@ -1,0 +1,454 @@
+html {
+    scroll-behavior: smooth;
+}
+
+
+body {
+    font-family: 'Open Sans', sans-serif;
+    letter-spacing: 0.2px;
+    color: #333;
+    margin: 0;
+    /* min-width: 1000px; */
+}
+
+h1 {
+    font-family: 'Noto Serif', serif;
+    font-size: 39px;
+    line-height: 42px;
+    margin-bottom: 30px;
+
+}
+
+h2 {
+    font-family: 'Noto Serif', serif;
+    font-size: 28px;
+    line-height: 30px;
+    text-align: center;
+    color: #333;
+    margin-block-start: 40px;
+    margin-block-end: 30px;
+    margin-inline-start: 0px;
+    margin-inline-end: 0px;
+}
+
+p {
+    font-size: 20px;
+    line-height: 26px;
+}
+
+a {
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+.navbar {
+    overflow: hidden;
+    background-color: #0098f1;
+    color: #333;
+    top: 0;
+    width: 100%;
+    height: 70px;
+    font-size: 15px;
+    text-align: right;
+    padding: 0 0 10px 0;
+    z-index: 1;
+}
+
+.navbar a {
+    margin-right: 40px;
+    color: #333;
+}
+
+.navbar a:active {
+    text-decoration: underline;
+}
+
+.right a {
+    float: right;
+}
+
+.container {
+    width: 100%;
+    margin: 0 auto;
+    max-width: 1500px;
+}
+
+.top {
+    background-color: #0098f1;
+    height: 650px;
+}
+
+.clear {
+    background-color: #fff;
+    height: auto;
+}
+
+.nav-top {
+    border-top: 8px solid #0098f1;
+}
+
+.row {
+    margin-left: 1rem;
+    margin-right: 1rem;
+    /* margin: auto; */
+    display: block;
+}
+
+.content {
+    padding: 22px;
+}
+
+.wrapper {
+    display: flex;
+    padding: 22px;
+}
+
+.gallery {
+    margin-top: 1rem;
+    text-align: center;
+}
+
+.gallery img {
+    width: 100%;
+}
+
+table {
+    width: 100%;
+    table-layout: fixed;
+    background-color: aliceblue;
+    border-radius: 1rem;
+    border-spacing: 1rem;
+    margin-top: 2rem;
+    text-align: center;
+}
+
+table img {
+    width: 100%;
+}
+
+table th {
+    text-align: center;
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+}
+
+.sidepanel {
+    background-color: #fff;
+    position: sticky;
+    width: 300px;
+    height: 95vh;
+    top: 20px;
+    margin-right: 50px;
+    margin-top: 10px;
+    overflow-y: scroll;
+    padding-right: 25px;
+    border-right: 1px solid rgb(230, 230, 230);
+}
+
+.sidepanel a.title {
+    font-family: 'Noto Serif', serif;
+    font-size: 18px;
+    font-weight: 600;
+    text-align: left;
+    text-decoration: none;
+    color: #333;
+    display: block;
+    padding-bottom: 12px;
+}
+
+.sidepanel a.section {
+    font-family: 'Open Sans', sans-serif;
+    font-size: 15px;
+    text-align: left;
+    line-height: 30px;
+    display: block;
+    text-decoration: none;
+    color: #333;
+}
+
+.sidepanel a.sub-section {
+    font-family: 'Open Sans', sans-serif;
+    font-size: 15px;
+    text-align: left;
+    line-height: 25px;
+    display: block;
+    text-decoration: none;
+    color: #333;
+    padding-left: 20px;
+
+}
+
+.sidepanel a.title:hover,
+.sidepanel a.section:hover,
+.sidepanel a.sub-section:hover {
+    text-decoration: underline;
+}
+
+.main-col {
+    width: 70%;
+    margin: auto;
+    text-align: center;
+}
+
+.main-col p {
+    font-size: 15px;
+    line-height: 24px;
+    margin-bottom: 36px;
+}
+
+.right-col {
+    text-align: left;
+    width: 100%;
+}
+
+.right-col h1 {
+    font-size: 24px;
+    line-height: 28px;
+    margin-bottom: 24px;
+}
+
+.right-col h1:before {
+    content: "";
+    display: block;
+    height: 3rem;
+}
+
+.right-col h2 {
+    font-size: 21px;
+    line-height: 24px;
+    margin-bottom: 30px;
+    text-align: left;
+    margin-block-start: 20px;
+    margin-block-end: 10px;
+}
+
+.right-col h2:before {
+    content: "";
+    display: block;
+    height: 1.5rem;
+}
+
+.right-col p {
+    font-size: 16px;
+    line-height: 22px;
+    margin-bottom: 36px;
+}
+
+.right-col a {
+    color: #0098f1;
+    text-decoration: underline;
+}
+
+.right-col ol {
+    margin-block-start: 10px;
+}
+
+.right-col code {
+    background-color: aliceblue;
+    border-radius: 0.25rem;
+    padding: 0.15rem;
+    color:#0098f1;
+}
+
+.right-col img {
+    border-radius: 1rem;
+}
+
+.logo {
+    width: 150px;
+    float: left;
+    margin: -10px 30px;
+}
+
+.col {
+    width: 50%;
+    float: left;
+}
+
+.top-info {
+    font-family: 'Open Sans', sans-serif;
+    font-size: 17px;
+    text-align: center;
+
+}
+
+.divider {
+    width: 40px;
+    height: 4px;
+    background: #0098f1;
+    border-radius: 30px;
+    margin: 20px 0;
+}
+
+.section-divider {
+    width: 100%;
+    height: 4px;
+    background: #0098f1;
+    border-radius: 30px;
+    margin: 30px 0;
+}
+
+
+.footer {
+    float: left;
+    width: 100%;
+    padding: 90px 0 20px;
+    font-size: 15px;
+    text-align: center;
+    background-color: #fff;
+}
+
+.footer a {
+    color: #333;
+}
+
+.resp-break {
+    display: none;
+}
+
+.break {
+    display: block;
+}
+
+.space {
+    height: 30px;
+    width: 100%;
+    float: left;
+}
+
+.double {
+    height: 60px;
+}
+
+.links {
+    float: left;
+    padding-bottom: 8px;
+}
+
+/* Scroll Bars */
+.sidepanel::-webkit-scrollbar {
+    width: 0.375rem;
+}
+
+.sidepanel::-webkit-scrollbar-track {
+    background: none;
+}
+
+.sidepanel:hover::-webkit-scrollbar-thumb {
+    background: #a3a3a3;
+    border-radius: 9999px;
+}
+
+
+
+/* Break Points */
+
+
+/* Extra small-small devices (phones, 420px and down) */
+@media only screen and (max-width: 420px) {
+
+    .logo {
+        width: 100px;
+    }
+
+    .navbar {
+        height: auto;
+    }
+
+    h2 {
+        font-size: 24px;
+    }
+
+    .links {
+        float: none;
+    }
+
+}
+
+
+
+/* Extra small devices (phones, 650px and down) */
+@media only screen and (max-width: 650px) {
+
+    .logo {
+        width: 115px;
+        margin: -10px 0px;
+    }
+
+    .navbar a {
+        padding-bottom: 5px;
+        margin-left: 40px;
+        margin-right: 0;
+    }
+
+    .resp-break {
+        display: block;
+        margin: 17px;
+    }
+
+    .main-col {
+        width: 100%;
+    }
+
+
+    .wrapper {
+        display: block;
+    }
+
+    .sidepanel {
+        width: 100%;
+        text-align: center;
+        position: relative;
+        height: auto;
+        padding-bottom: 50px;
+    }
+
+    .sidepanel a.title,
+    .sidepanel a.section,
+    .sidepanel a.sub-section {
+        text-align: center;
+    }
+
+    .divider {
+        margin: 20px auto;
+    }
+
+    .right-col {
+        position: relative;
+        margin-top: 20px;
+        margin-left: 0px;
+
+    }
+}
+
+/* Small devices (portrait tablets and large phones, 650px and up) */
+@media only screen and (min-width: 650px) {
+
+    .logo {
+        margin: -10px 0px;
+    }
+
+    .right a {
+        float: right;
+        padding-bottom: 5px;
+    }
+
+
+
+}
+
+/* Medium devices (landscape tablets, 768px and up) */
+@media only screen and (min-width: 768px) {}
+
+/* Large devices (laptops/desktops, 992px and up) */
+@media only screen and (min-width: 992px) {
+    .gallery img {
+        width: 49%;
+    }
+}
+
+
+/* End Break Points */
