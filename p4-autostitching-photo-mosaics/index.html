@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>CS 180 Project 4A</title>
+    <title>CS 180 Project 4B</title>
 
     <link rel="stylesheet" href="style.css?">
     <link
@@ -22,7 +22,7 @@
     <!-- Title -->
     <div class="navbar clear nav-top">
         <div class="row" style="text-align: center;">
-            <h1>CS 180 Project 4A: Image Warping and Mosaicing</h1>
+            <h1>CS 180 Project 4: [Auto]Stitching Photo Mosaics</h1>
             <b>By Jeffrey Tan</b>
         </div>
     </div>
@@ -42,10 +42,15 @@
 
                 <h1 id="introduction">Introduction</h1>
                 <p>
-                    This project explores how to warp and stitch images together into mosaics using manually labeled correspondence points. This same warping operation can also be used rectify images and fit them to different perspectives.
+                    The first part of this project explores how to warp and stitch images together into mosaics using manually labeled correspondence points. This same warping operation can also be used rectify images and fit them to different perspectives. The second part of this project focuses on how to stitch images together into mosaics using correspondence points that are automatically identified, filtered, and matched.
                 </p>
 
-                <h1 id="shoot-the-pictures">Shoot the Pictures</h1>
+
+
+
+
+
+                <h1 id="shoot-the-pictures">Part A: Shoot the Pictures</h1>
 
                 <h2 id="shoot-approach">Approach</h2>
                 <p>
@@ -67,7 +72,7 @@
 
 
 
-                <h1 id="homography">Recover Homographies</h1>
+                <h1 id="homography">Part A: Recover Homographies</h1>
                 <h2 id="homography-approach">Approach</h2>
                 <p>
                   I used the same <a href="https://inst.eecs.berkeley.edu/~cs194-26/fa22/upload/files/proj3/cs194-26-aex/tool.html">correspondence tool</a> used in Project 3 to label matching features between each pair of images in the mosaic. After obtaining the correspondences <code>src_pts</code> for the source image and <code>trg_pts</code> for the target image, I used the SVD approach described in <a href="https://cseweb.ucsd.edu/classes/wi07/cse252a/homography_estimation/homography_estimation.pdf">this paper</a> to calculate the homography matrix. For each pair of correspondence points <code>(x1, y1)</code> and <code>(x2, y2)</code>, two vectors are created following the formula below:
@@ -82,7 +87,7 @@
 
 
 
-                <h1 id="warp">Warp the Images</h1>
+                <h1 id="warp">Part A: Warp the Images</h1>
                 <h2 id="warp-approach">Approach</h2>
                 <p>
                   For each pair of images, after calculating the homography matrix <code>H</code>, the correspondences in the source image <code>src_img</code> are warped to fit those of the target image <code>trg_img</code> using a similar approach to the one used in Project 3. First, the points of bounding box <code>src_bounds</code> represented by the four corners of the image are stacked row-by-row into a matrix of homogeneous coordinates. These bounds are then warped to the bounds of the resulting image by applying the homography matrix like so: <code>trg_bounds = src_bounds @ H</code>. Next, <code>skimage.draw.polygon</code> is used to list all pixel locations <code>trg_pts</code> in the quadrilateral bounded by <code>trg_bounds</code>. For each pixel in <code>trg_pts</code>, the inverse transform <code>H_inv = np.linalg.inv(H)</code> is applied by doing <code>inv_pts = trg_pts @ H_inv</code>. At each point in <code>inv_pts</code>, the neighboring pixel values in the original image <code>src_img</code> are sampled using bilinear interpolation to produce the final pixel value at that pixel in the warped image.
@@ -119,7 +124,7 @@
 
 
 
-                <h1 id="blend">Blend the Images into Mosaics</h1>
+                <h1 id="blend">Part A: Blend the Images into Mosaics</h1>
                 <h2 id="blend-approach">Approach</h2>
                 <p>
                   In order to produce a mosaic, the images in the mosaic were first organized into a tree such that image <code>A</code> is the parent of <code>B</code> if the correspondences in image <code>B</code> needs to be warped to fit image <code>A</code>. The correspondence points generated from the correspondence tool represents a directed edge from <code>B</code> to <code>A</code>. The root node is the unwarped reference image at the center of the mosaic. The images and correspondence points are loaded while building the tree, and for each node <code>n</code>, the "delta" homography matrix <code>delta_H</code> is computed by using its own correspondence points <code>n.pts</code> and its parents correspondence points <code>n.parent.pts</code>. Then, its final homography matrix <code>n.H</code> is computed by multiplying <code>n.parent.H @ delta_H</code>. This chaining of homography matrices allows the mosaicing of images that are not directly linked by correspondence points. When rendering the mosaic, the nodes in the mosaic tree are processed in BFS order starting at the root so that images towards the edges of the mosaic are overlayed on top of those near the center.
@@ -218,9 +223,174 @@
                 </table>
 
 
+
+
+
+
+
+
+
+
+
+
+
+                
+
+
+
+                <h1 id="detect-corners">Part B: Detecting Corners</h1>
+                <h2 id="detect-corners-approach">Approach</h2>
+                <p>
+                    First, all <code>corners</code> in the image are detected using the Harris corner detection algorithm, and the scores <code>h</code> for each pixel in the image is retrieved using <code>get_harris_corners()</code>. The scores for each corner are extracted into a vector <code>scores = h[corners[:, 0], corners[:, 1]]</code>. Adaptive Non-Maximal Suppression (ANMS) is then used to identify the strongest corners in the image while still keeping the points spread out relatively evenly across the image. To perform ANMS, the parwise distances <code>dists</code> are calculated using <code>dist2()</code>. Numpy broadcasting is then used to determine whether <code>f(x_i) < c_robust * f(x_j)</code> holds true for each pair of corners, resulting in a mask <code>larger_mask = scores[:, np.newaxis] < (c_robust * scores[np.newaxis, :])</code>. Then, <code>dists</code> is masked using this mask to produce <code>masked_dists = dists * larger_mask</code>, and the distances between pairs of corners that do not satisfy the inequality above are set to infinity so that they do not take part in the upcoming minimization. This way, the minimum radii for each point can be calculated using <code>radii = np.min(masked_dists, axis=1)</code>. Next, the indices of each point are sorted in order of decreasing radii using <code>sorted_indices = (-radii).argsort()</code>. Finally, these indices are used to sort the original list of corners using <code>sorted_corners = corners[sorted_indices]</code> and the best corners are returned using <code>points = sorted_corners[:num_corners]</code>.
+                </p>
+
+                <h2 id="detect-results">Results</h2>
+                <table>
+                    <tr>
+                        <th>All Corners</th>
+                        <th>ANMS Corners</th>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="results/part1/all_corners.png"/>
+                        </td>
+                        <td>
+                            <img src="results/part1/top_500_corners.png"/>
+                        </td>
+                    </tr>
+                </table>
+
+
+
+
+
+                <h1 id="extracting">Part B: Extracting Feature Descriptors</h1>
+
+                <h2 id="extracting-approach">Approach</h2>
+                <p>
+                    For each corner in <code>points</code> obtained from ANMS, a <code>40x40</code> region <code>feature</code> around the given point is sliced from the original color image, which is then resized to <code>8x8</code> using <code>skimage.transform.resize</code>. The feature is then normalized by subtracting the mean and dividing by the standard deviation for each of the three channels. Lastly it is flattened and stacked into a <code>Nx192</code> matrix with each row being a flattened feature descriptor. This is performed for each image in the pair to produce <code>features1</code> and <code>features2</code>.
+                </p>
+
+
+                <h2 id="extracting-results">Results</h2>
+                <p>
+                    Here are some examples of the extracted <code>8x8</code> feature descriptors:
+                </p>
+                <div class="gallery">
+                    <img src="results/part2/feature_1.png"/>
+                    <img src="results/part2/feature_2.png"/>
+                    <img src="results/part2/feature_3.png"/>
+                    <img src="results/part2/feature_4.png"/>
+                    <img src="results/part2/feature_5.png"/>
+                    <img src="results/part2/feature_6.png"/>
+                </div>
+
+
+
+
+
+                <h1 id="matching">Part B: Matching Feature Descriptors</h1>
+
+                <h2 id="matching-approach">Approach</h2>
+                <p>
+                    The pairwise differences between each flattened feature descriptor is calculated using <code>diff = features1[:, np.newaxis, :] - features2[np.newaxis, :, :]</code>, and the pairwise sum-squared differences (SSD) are calculated by summing over the last dimension of size <code>192</code> using <code>ssd = np.sum(diff ** 2, axis=-1)</code>. The nearest-neighbor distances are then sorted within each row (representing a feature of interest in the first image) from smallest distance to largest. The Lowe score for each feature is calculated using the 1-NN and 2-NN distances in <code>ssd</code> through <code>lowe = nn_dists[:, 0] / nn_dists[:, 1]</code>. All features with a Lowe score lower than the threshold is extracted using the mask <code>lowe_mask = lowe < lowe_threshold</code>, which will be used to filter the matches at the end. The indices of the closest nearest neighbor for each feature is retrieved using <code>closest = ssd.argsort()[:, 0]</code>. These indices are then paired with the indices of the first image's features using <code>matches = np.stack([np.arange(0, closest.shape[0]), closest]).T</code>. Lastly, the pairings are filtered using the mask from before: <code>matches[lowe_mask]</code>.
+                </p>
+
+
+                <h2 id="matching-results">Results</h2>
+                <p>
+                    Here are some examples of matches between feature descriptors:
+                </p>
+                <div class="gallery">
+                    <img src="results/part3/match_1.png"/>
+                    <img src="results/part3/match_2.png"/>
+                    <img src="results/part3/match_3.png"/>
+                    <img src="results/part3/match_4.png"/>
+                    <img src="results/part3/match_5.png"/>
+                    <img src="results/part3/match_6.png"/>
+                </div>
+
+                <p>
+                    This matching process resulted in the following correspondences, which were obtained by indexing into the original list of detected points using <code>corr1 = points1[matches[:, 0]]</code> and <code>corr2 = points2[matches[:, 1]]</code>.
+                </p>
+                <div>
+                    <img src="results/part3/home_correspondences.png"/ width="100%">
+                </div>
+
+
+
+
+                <h1 id="ransac">Part B: Random Sample Consensus (RANSAC)</h1>
+                
+                <h2 id="ransac-approach">Approach</h2>
+                <p>
+                    RANSAC is implemented and used in the <code>Mosaic</code> class from Part A of this project. Given a set of <code>src_pts</code> and <code>trg_pts</code>, during each iteration of the algorithm, the indices of four points from <code>src_pts</code> are sampled without replacement using <code>indices = np.random.choice(src_pts.shape[0], size=4, replace=False)</code> and the points are retrieved through indexing using <code>src_sample = src_pts[indices, :]</code> and <code>trg_sample = trg_pts[indices, :]</code>. Using these samples, the homography is calculated exactly like in Part A using <code>h = compute_homography(src_sample, trg_sample)</code>. Then, all the source points are transformed using <code>transformed_pts = src_pts @ h</code> and unscaled. The Euclidean distance between the transformed points and the ground truth targets are calculated using <code>dists = np.sqrt(np.sum((transformed_pts - trg_pts) ** 2, axis=-1))</code>. Lastly, all points that land within a given threshold of their targets are extracted using a mask <code>mask = (dists < threshold)</code>. The number of points that are under the threshold is counted by summing the mask. If that count is larger than the size of the current largest set of points, update the largest set of points to be <code>best_src = src_pts[mask]</code> and <code>best_trg = trg_pts[mask]</code>. After all the iterations, <code>best_src</code> and <code>best_trg</code> are returned. These points are then passed into the <code>compute_homography</code> function from Part A to calculate the homography matrix.
+                </p>
+
+                <h2 id="ransac-results">Results</h2>
+                <p>
+                    The RANSAC inliers for each pair of correspondences are shown below:
+                </p>
+                <div>
+                    <img src="results/part4/home_inliers.png" width="100%"/>
+                    <img src="results/part4/university_hall_inliers.png" width="100%"/>
+                    <img src="results/part4/bangkok_inliers_left.png" width="100%"/>
+                    <img src="results/part4/bangkok_inliers_right.png" width="100%"/>
+                </div>
+
+
+                <h1 id="mosaic">Part B: Autostitching Mosaics</h1>
+
+                <h2 id="mosaic-approach">Approach</h2>
+                <p>
+                    The automatically generated correspondences are stored in the same JSON file format used by <code>Mosaic</code> from Part A, and the code is run as-is with the exception that the homographies are now calculated using RANSAC.
+                </p>
+
+                <h2 id="mosaic-results">Results</h2>
+                <p>
+                    Overall, the autostitching performed almost as well on the mosaics from Part A. The autostitched mosaics were a couple pixels more inaccurate than my manually labeled correspondences, but this is most likely due to the fact that I took the time to iteratively choose manual correspondences to get the best alignment I could. Another factor is that, with autostitching, the user has little control over the features it chooses. This is evident in how the roof of University Hall is slightly misaligned in the autostitched mosaic. Additionally, the two chairs in the middle of the autostitched restaurant mosaic are slightly misaligned and so is the far wall.
+                </p>
+
+                <p>
+                    Interestingly, the autostitched mosaic of my living room was slightly better than the manual version. The floorboards near the center of the mosaic are aligned more accurately in the autostitched version, which makes sense because I had trouble manually finding the right corners on the floor to align the patterns in the floorboards, whereas it is probably easier for the algorithm to find more accurate matches between the irregular patterns.
+                </p>
+                <table>
+                    <tr>
+                        <th>Manual</th>
+                        <th>Autostitched</th>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="results/part5/originals/university_hall.png"/>
+                        </td>
+                        <td>
+                            <img src="results/part5/university_hall.png"/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="results/part5/originals/home.png"/>
+                        </td>
+                        <td>
+                            <img src="results/part5/home.png"/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="results/part5/originals/bangkok.png"/>
+                        </td>
+                        <td>
+                            <img src="results/part5/bangkok.png"/>
+                        </td>
+                    </tr>
+                </table>
+
+
+
                 <h1 id="reflection">Reflection</h1>
                 <p>
-                  Visualizing how the forward and inverse homography matrices transform the input was tricky but fun, and it was interesting to learn that homography matrices can be chained together to link images that do not share any correspondences at all.
+                    Visualizing how the forward and inverse homography matrices transform the input was tricky but fun, and it was interesting to learn that homography matrices can be chained together to link images that do not share any correspondences at all.
+                    The feature descriptor matching was really interesting. Implementing the pairwise SSD using broadcasting instead of loops was a fun challenge. It was also interesting visualizing the final features that the algorithm chose, since for the most part, they weren't the features that I initially focused on.
                 </p>
 
         </div>
