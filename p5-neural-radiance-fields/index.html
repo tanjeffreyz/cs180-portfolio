@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>CS 180 Project 5</title>
+
+    <link rel="stylesheet" href="style.css?">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&family=Open+Sans:ital,wght@0,400;0,700;1,600&display=swap"
+        rel="stylesheet">
+
+    <script defer src="https://use.fontawesome.com/releases/v5.7.2/js/all.js"
+        integrity="sha384-0pzryjIRos8mFBWMzSSZApWtPl/5++eIfzYmTgBBmXYdhvxPc+XcFEk+zJwDgWbP"
+        crossorigin="anonymous"></script>
+    <script src="offsets.js"></script>
+</head>
+
+<body>
+    <!-- Title -->
+    <div class="navbar clear nav-top">
+        <div class="row" style="text-align: center;">
+            <h1 id="title">CS 180 Project 5: Neural Radiance Fields</h1>
+            <b>By Jeffrey Tan</b>
+        </div>
+    </div>
+
+    <div class="container clear">
+        <div class="row wrapper">
+            <!-- Table of Contents -->
+            <div class="sidepanel" id="table-of-contents"></div>
+
+            <!-- Contents -->
+            <div class="right-col">
+                <div style="text-align: center;">
+                    <img src="results/part2_5/nerf_55000.gif" width="49%"/>
+                </div>
+
+                <h1>Introduction</h1>
+                <p>
+                    This project explores how to generate convincing pictures from new viewing directions using Neural Radiance Fields.
+                </p>
+
+
+
+                <h1>1: Fit a Neural Field to a 2D Image</h1>
+                <h2>Approach</h2>
+                <p>
+                    The model consists of a positional encoding layer that converts a <code>B x 2</code> tensor of coordinates into a tensor of positional encodings. Each coordinate (x, y) is encoded separately and then concatenated into the final <code>B x 4L+2</code> output tensor. This positional encoding layer is then followed by three hidden linear layers of size <code>256</code> and a final output linear layer of size <code>3</code>. Each linear layer is followed by a <code>nn.ReLU</code> activation function, except for the last one, which is instead followed by a <code>nn.Sigmoid</code> activation in order to clamp the output RGB pixel values to be between 0 and 1.
+                </p>
+
+                <h2>Fox</h2>
+                <p>
+                    Varying the learning rate produced the following loss and PSNR curves. I tried changing the original learning rate of <code>0.01</code> by factors of 10, but none of the other learning rates achieved a lower loss or higher PSNR. When the learning rate was increased to <code>0.1</code>, the model failed to converge at all, and in the other cases it converged much more slowly compared to <code>lr=0.01</code>. In the end, a learning rate of <code>0.01</code> achieved the best PSNR of <code>26.39</code>.
+                </p>
+                <table>
+                    <tr>
+                        <th>Loss</th>
+                        <th>PSNR</th>
+                    </tr>
+                    <tr>
+                        <td><img src="results/part1/fox/lr_losses.png"/></td>
+                        <td><img src="results/part1/fox/lr_psnr.png"/></td>
+                    </tr>
+                </table>
+
+                <p>
+                    Varying the length of the positional encoding produced the following loss and PSNR curves. I tried encoding lengths of 5, 10, 15, 20, and 25. As the encoding length increased from 5 to 10, the PSNR increased, but as encoding length increased from 10 to 25, the loss increased again and the PSNR decreased. <code>L=10</code> produced the best final PSNR of <code>26.54</code>, although <code>L=15</code> produced similarly good results.
+                </p>
+                <table>
+                    <tr>
+                        <th>Loss</th>
+                        <th>PSNR</th>
+                    </tr>
+                    <tr>
+                        <td><img src="results/part1/fox/L_losses.png"/></td>
+                        <td><img src="results/part1/fox/L_psnr.png"/></td>
+                    </tr>
+                </table>
+
+                <p>
+                    The final result was generated using <code>lr=0.01</code> and <code>L=10</code> with the original model described above, trained over <code>3000</code> iterations. Here are the output images observed every 100 iterations in the first 1000 iterations.
+                </p>
+                <div class="small-gallery">
+                    <img src="results/part1/fox/L10_lr1e-2/fox_0000.png"/>
+                    <img src="results/part1/fox/L10_lr1e-2/fox_0100.png"/>
+                    <img src="results/part1/fox/L10_lr1e-2/fox_0200.png"/>
+                    <img src="results/part1/fox/L10_lr1e-2/fox_0300.png"/>
+                    <img src="results/part1/fox/L10_lr1e-2/fox_0400.png"/>
+                    <img src="results/part1/fox/L10_lr1e-2/fox_0500.png"/>
+                    <img src="results/part1/fox/L10_lr1e-2/fox_0600.png"/>
+                    <img src="results/part1/fox/L10_lr1e-2/fox_0700.png"/>
+                    <img src="results/part1/fox/L10_lr1e-2/fox_0800.png"/>
+                    <img src="results/part1/fox/L10_lr1e-2/fox_0900.png"/>
+                    <img src="results/part1/fox/L10_lr1e-2/fox_1000.png"/>
+                </div>
+
+                <table>
+                    <tr>
+                        <th>Original Image</th>
+                        <th>Final Result</th>
+                    </tr>
+                    <tr>
+                        <td><img src="data/fox.jpg"/></td>
+                        <td><img src="results/part1/fox/L10_lr1e-2/fox_final.png"/></td>
+                    </tr>
+                </table>
+                
+
+                <h2>Samoyed</h2>
+                <p>
+                    A hyperparameter sweep was performed to find the best combination of learning rate and positional encoding length, and produced the following loss and PSNR curves. From the sweep, <code>lr=0.001</code> and <code>L=10</code> appear to be the best combination, producing a PSNR of <code>23.47</code>.
+                </p>
+
+                <table>
+                    <tr>
+                        <th>Loss</th>
+                        <th>PSNR</th>
+                    </tr>
+                    <tr>
+                        <td><img src="results/part1/samoyed/sweep_loss.png"/></td>
+                        <td><img src="results/part1/samoyed/sweep_psnr.png"/></td>
+                    </tr>
+                </table>
+
+                <p>
+                    However, because the image was quite large, I ended up having to train the model over <code>100_000</code> iterations with <code>lr=0.001</code> and <code>L=10</code> in order to achieve a PSNR of <code>25.85</code>:
+                </p>
+
+                <table>
+                    <tr>
+                        <th>Loss</th>
+                        <th>PSNR</th>
+                    </tr>
+                    <tr>
+                        <td><img src="results/part1/samoyed/loss.png"/></td>
+                        <td><img src="results/part1/samoyed/psnr.png"/></td>
+                    </tr>
+                </table>
+
+                <p>
+                    Here are the output images observed at every 100 iterations in the first 1000 iterations. Just like with the image of the fox, there weren't huge changes past the first 1000 iterations other than the image becoming 
+                </p>
+                <div class="small-gallery">
+                    <img src="results/part1/samoyed/L10_lr1e-3/samoyed_0000.png"/>
+                    <img src="results/part1/samoyed/L10_lr1e-3/samoyed_0100.png"/>
+                    <img src="results/part1/samoyed/L10_lr1e-3/samoyed_0200.png"/>
+                    <img src="results/part1/samoyed/L10_lr1e-3/samoyed_0300.png"/>
+                    <img src="results/part1/samoyed/L10_lr1e-3/samoyed_0400.png"/>
+                    <img src="results/part1/samoyed/L10_lr1e-3/samoyed_0500.png"/>
+                    <img src="results/part1/samoyed/L10_lr1e-3/samoyed_0600.png"/>
+                    <img src="results/part1/samoyed/L10_lr1e-3/samoyed_0700.png"/>
+                    <img src="results/part1/samoyed/L10_lr1e-3/samoyed_0800.png"/>
+                    <img src="results/part1/samoyed/L10_lr1e-3/samoyed_0900.png"/>
+                    <img src="results/part1/samoyed/L10_lr1e-3/samoyed_1000.png"/>
+                </div>
+
+                <table>
+                    <tr>
+                        <th>Original Image</th>
+                        <th>Final Result</th>
+                    </tr>
+                    <tr>
+                        <td><img src="data/samoyed.jpg"/></td>
+                        <td><img src="results/part1/samoyed/L10_lr1e-3/samoyed_final.png"/></td>
+                    </tr>
+                </table>
+
+
+
+
+
+
+
+                <h1>2.1: Create Rays from Cameras</h1>
+                <h2>Camera to World Coordinate Conversion</h2>
+                <p>
+                    The <code>transform</code> function is just a simple <code>torch.matmul</code> between the batched 3D homogeneous coordinates <code>x_c</code> and the camrea-to-world matrix <code>c2w</code>. However, because the rows of <code>x_c</code> are the coordinates, <code>transform</code> right-multiplies <code>x_c</code>by the transpose of <code>c2w</code>.
+                </p>
+
+                <h2>Pixel to Camera Coordinate Conversion</h2>
+                <p>
+                    The <code>pixel_to_camera(K, uv, s)</code> function takes in a <code>B x 2</code> matrix of pixel locations <code>uvs</code> and first turns it into a <code>B x 3</code> matrix of 2D homogeneous coordinates. It then multiplies <code>s_uvs = uvs * s</code> and finally calls <code>transform(s_uvs, K_inv.T)</code> to get the camera-space vectors of depth <code>s</code>. The matrix <code>K</code> is the camera's intrinsic matrix and is built once at the start of the script using <code>data['focal']</code> and <code>o_x = o_y = 100</code>. <code>K_inv</code> is computed using <code>torch.inverse</code>.
+                </p>
+
+                <h2>Pixel to Ray</h2>
+                <p>
+                    In <code>pixel_to_ray(K, c2ws, uvs)</code>, the camera's world-space coordinates <code>ray_o</code> are extracted from the batched <code>c2ws</code> matrices through <code>ray_o = c2ws[:, :3, -1]</code>. This is equivalent to doing <code>ray_o = -inv(R_3x3) @ t</code>. Then, camera ray endpoints <code>c_ray</code> for each point in <code>uvs</code> are calculated with a placeholder depth of <code>s=1</code> using <code>c_ray = pixel_to_camera(K, uvs, 1)</code>. The endpoints <code>c_ray</code> are transformed into word-space coordinates using <code>X_w = torch.bmm(c_ray, c2ws.transpose(1, 2))</code>. Then, <code>ray_o</code> is subtracted from <code>X_w</code>, and this difference is divided by its norm to produce the ray's direction unit-vector <code>ray_d</code>.
+                </p>
+
+
+
+
+
+
+                <h1>2.2: Sampling</h1>
+                <h2>Sampling Rays from Images</h2>
+                <p>
+                    In order to batch the sampling process in <code>NeRFDataloader</code>, three random <code>B x 1</code> vectors are generated: <code>i</code>, <code>y</code>, and <code>x</code>. First, <code>i</code> contains values in the range <code>[0, n)</code> where <code>n</code> is the number of images in the dataset. <code>y</code> contains values in the range <code>[0, height)</code> and <code>x</code> contains values in the range <code>[0, width)</code>. The ground truth pixel values are sampled using <code>values = self.images[i, y, x]</code>, and the corresponding camera-to-world matrices are sampled using <code>c2ws = self.c2ws[i]</code>. The desired pixel coordinates <code>x</code> and <code>y</code> are concatenated together to form <code>uvs</code>, which is then passed along with <code>c2ws</code> into <code>pixel_to_ray</code> to generated batched <code>rays_o</code> and <code>rays_d</code>. In the end, <code>rays_o</code>, <code>rays_d</code>, and <code>values</code> are returned as a batch.
+                </p>
+
+                <h2>Sampling Points along Rays</h2>
+                <p>
+                    In <code>sample_along_rays</code>, the distances <code>t</code> along the rays to sample are generated using <code>torch.linspace(near, far, n_samples)</code>. If <code>perturb=True</code>, then <code>t</code> is additionally jittered with some <code>noise = torch.rand(batch_size, n_samples, 1)</code> through <code>t = t + noise * t_width</code>. Finally, the batched samples along each ray are calculated using <code>rays_o + rays_d * t</code> and returned.
+                </p>
+                <p>
+                    For convenience, the <code>deltas</code> between consecutive values in <code>t</code> are also returned. First, <code>diff = t[:, 1:] - t[:, :-1]</code> is calculated and then a column of <code>t_width = (far - near) / n_samples</code> values is appended to keep the dimensions of <code>deltas</code> consistent with <code>n_samples</code> and easily broadcastable later on.
+                </p>
+
+
+
+                <h1>2.3: Putting the Dataloading All Together</h1>
+                <p>
+                    With all the above functions implemented, the <code>NeRFDataloader</code> class was simple to implement. It is initialized with <code>images</code> and <code>c2ws</code> from the desired dataset, along with a <code>length</code> and <code>batch_size</code>. It implements <code>__iter__</code> and stops iteration when it has sampled and returned <code>length</code> number of batches.
+                </p>
+                <p>
+                    With the visualization code, the <code>NeRFDataloader</code> was able to produce the following plot with <code>perturb=True</code>. Because perturbation adds a random offset to each value in <code>t</code>, the last values in <code>t</code> get pushed beyond <code>far</code> whereas the plotted rays stop exactly at <code>far</code>, so some points appear to be floating off the end of the ray.
+                </p>
+                <div class="gallery">
+                    <img src="results/part2_3/viser_rays.png"/>
+                </div>
+
+
+
+
+
+
+                <h1>2.4: Neural Radiance Field</h1>
+                <h2>Network</h2>
+                <p>
+                    The network was split into several smaller subnets at each of the concatenation points using <code>nn.Sequential</code> as follows:
+                </p>
+                <div>
+                    <img src="results/part2_4/architecture.png" width="100%"/>
+                </div>
+                <p>
+                    The <code>PositionalEncoding</code> module from Part 1 was modified to support any number of dimensions. The inputs <code>x</code> and <code>rd</code> are encoded using the 3D positional encoding to get <code>x_enc</code> and <code>rd_enc</code> respectively. Then, <code>x_enc</code> is passed through <code>ffn1</code> to produce <code>out1</code>, which is concatenated with the original positional encoding using <code>out1 = torch.concat([out1, x_enc], dim=-1)</code>. This is fed into <code>ffn2</code> to produce <code>out2</code>. After this, the network splits off into two branches. For the density calculation, <code>out2</code> is passed into <code>density_ffn</code> to produce a <code>B x 1</code> tensor of density predictions <code>density_out</code>. For the rgb calculation, <code>out2</code> is first passed through <code>rgb_ffn1</code> to get <code>rgb_out1</code>. This is then concatenated with the original positional encoding for ray direction using <code>rgb_out1 = torch.concat([rgb_out1, rd_enc], dim=-1)</code> and passed into <code>rgb_ffn2</code> to produce a <code>B x 3</code> tensor of RGB color predictions <code>rgb_out</code>. Both <code>density_out</code> and <code>rgb_out</code> are returned from the forward pass.
+                </p>
+
+
+
+
+                <h1>2.5: Volume Rendering</h1>
+                <p>
+                    The <code>volumetric_render</code> function takes in batched tensors <code>sigmas</code>, <code>rgbs</code>, and <code>deltas</code>. For batch size <code>B</code> and number of samples along the ray <code>N</code>, the <code>sigmas</code> (<code>B x N x 1</code>) and <code>rgbs</code> (<code>B x N x 3</code>) tensors come from the model predictions and represent the densities and corresponding colors at the predicted locations. The <code>deltas</code> (<code>B x N x 1</code>), representing the lengths of each segment along the ray, come from <code>sample_along_rays</code>.
+                </p>
+                <p>
+                    First, for convenience, the <code>sigmas</code> and <code>deltas</code> are multiplied togther to get <code>prod = sigmas * deltas</code>, which is reused in the following calculations. Next, the exponents of the <code>T_i</code> elements are computed using <code>cumsum = torch.cumsum(prod, dim=1)</code>. However, because the exponent of <code>T_i</code> must be the sum of the sigma-delta products up until <b>but excluding <code>i</code></b>, the current products must be subtracted from the cumulative sum to produce <code>prev_sum = cumsum - prod</code>. Thus, the <code>T</code> matrix containing all <code>T_i</code>'s can be calculated using <code>T = torch.exp(-prev_sum)</code>. The weight for the color at the current step is calculated using <code>p = 1 - torch.exp(-prod)</code> and the weighted colors at each step along the ray are produced using batched operations like so: <code>colors = T * p * rgbs</code>. Lastly, the weighted colors are summed together for each ray to produce a <code>B x 3</code> tensor of colors corresponding to each of the <code>B</code> original rays.
+                </p>
+
+
+                
+
+                <h1>Training the Model</h1>
+                <h2>The Forward Pass</h2>
+                <p>
+                    Given <code>rays_o</code> and <code>rays_d</code>, the <code>forward</code> function first calls <code>sample_along_rays</code> to get <code>points</code> and <code>deltas</code>. The <code>points</code> and <code>rays_d</code> are passed into the model, which returns <code>density_preds</code> and <code>color_preds</code> as output. These two tensors are then passed along with <code>deltas</code> into <code>volumetric_render</code> to produce a prediction of the color of each ray.
+                </p>
+
+
+                <h2>Rendering Images</h2>
+                <p>
+                    Rendering an image from a view defined by a <code>c2w</code> matrix combines the functions implemented in the previous parts. First, the <code>x</code> and <code>y</code> positions of each pixel in the desired final image are concatenated together into a tensor <code>uvs</code>. This is passed into <code>pixel_to_ray</code> along with the <code>c2w</code> matrix to produce <code>rays_o</code> and <code>rays_d</code>. These are passed into <code>forward</code> and the result of the <code>volumetric_render</code> on the model's outputs is reshaped into the final image and returned.
+                </p>
+
+
+                <h1>Final Results</h1>
+                <h2>5,000 Iterations</h2>
+                <p>
+                    The model was trained across <code>5_000</code> gradient steps with a batchsize of <code>10_000</code> rays per step. The 3D positions <code>x</code> were encoded using <code>X_ENC_LEN=10</code> and the ray directions <code>rd</code> were encoded using <code>RD_ENC_LEN=4</code>. The Adam optimizer was used with a learning rate of <code>5e-4</code>. The model predictions were passed into <code>volumetric_render</code> and <code>nn.MSELoss</code> was used to compare the render results with the ground truth pixel values for each ray.
+                </p>
+                <p>
+                    After 20 minutes of training over 5000 gradient steps, the model achieved <code>0.0032</code> loss and <code>24.97</code> PSNR on the training set, and <code>0.0028</code> loss and <code>25.59</code> PSNR on the validation set.
+                </p>
+                
+                <table>
+                    <tr>
+                        <th>Training Loss</th>
+                        <th>Training PSNR</th>
+                    </tr>
+                    <tr>
+                        <td><img src="results/part2_5/train_loss_5000.png"/></td>
+                        <td><img src="results/part2_5/train_psnr_5000.png"/></td>
+                    </tr>
+                </table>
+
+                <table>
+                    <tr>
+                        <th>Validation Loss</th>
+                        <th>Validation PSNR</th>
+                    </tr>
+                    <tr>
+                        <td><img src="results/part2_5/valid_loss_5000.png"/></td>
+                        <td><img src="results/part2_5/valid_psnr_5000.png"/></td>
+                    </tr>
+                </table>
+
+                <!-- <p>
+                    Here are images of training-set camera <code>47</code> taken at iteration 0, 100, 200, 500, 1000, 2000, and 5000:
+                </p>
+                <div class="small-gallery">
+                    <img src="results/part2_5/X10_RD4_N64_lr5e-04/train_0000.png"/>
+                    <img src="results/part2_5/X10_RD4_N64_lr5e-04/train_0100.png"/>
+                    <img src="results/part2_5/X10_RD4_N64_lr5e-04/train_0200.png"/>
+                    <img src="results/part2_5/X10_RD4_N64_lr5e-04/train_0500.png"/>
+                    <img src="results/part2_5/X10_RD4_N64_lr5e-04/train_1000.png"/>
+                    <img src="results/part2_5/X10_RD4_N64_lr5e-04/train_2000.png"/>
+                    <img src="results/part2_5/X10_RD4_N64_lr5e-04/train_5000.png"/>
+                </div> -->
+
+                <p>
+                    Here are images of validation-set camera <code>0</code> taken at iteration 0, 100, 200, 500, 1000, 2000, and 5000:
+                </p>
+                <div class="small-gallery">
+                    <img src="results/part2_5/X10_RD4_N64_lr5e-04/valid_0000.png"/>
+                    <img src="results/part2_5/X10_RD4_N64_lr5e-04/valid_0100.png"/>
+                    <img src="results/part2_5/X10_RD4_N64_lr5e-04/valid_0200.png"/>
+                    <img src="results/part2_5/X10_RD4_N64_lr5e-04/valid_0500.png"/>
+                    <img src="results/part2_5/X10_RD4_N64_lr5e-04/valid_1000.png"/>
+                    <img src="results/part2_5/X10_RD4_N64_lr5e-04/valid_2000.png"/>
+                    <img src="results/part2_5/X10_RD4_N64_lr5e-04/valid_5000.png"/>
+                </div>
+
+
+                <p>
+                    Here is a video of the the model's predictions on the <code>c2ws</code> from the test set:
+                </p>
+                <div class="gallery">
+                    <img src="results/part2_5/nerf_5000.gif"/>
+                </div>
+
+
+                <h2>50,000 Iterations</h2>
+                <p>
+                    After 3 hours of training over 50,000 gradient steps, the model achieved <code>0.00130</code> loss and <code>28.88</code> PSNR on the training set, and <code>0.00133</code> loss and <code>28.76</code> PSNR on the validation set.
+                </p>
+
+                <table>
+                    <tr>
+                        <th>Training Loss</th>
+                        <th>Training PSNR</th>
+                    </tr>
+                    <tr>
+                        <td><img src="results/part2_5/train_loss_50000.png"/></td>
+                        <td><img src="results/part2_5/train_psnr_50000.png"/></td>
+                    </tr>
+                </table>
+
+                <table>
+                    <tr>
+                        <th>Validation Loss</th>
+                        <th>Validation PSNR</th>
+                    </tr>
+                    <tr>
+                        <td><img src="results/part2_5/valid_loss_50000.png"/></td>
+                        <td><img src="results/part2_5/valid_psnr_50000.png"/></td>
+                    </tr>
+                </table>
+
+                <p>
+                    Here is a video of the the model's predictions on the <code>c2ws</code> from the test set:
+                </p>
+                <div class="gallery">
+                    <img src="results/part2_5/nerf_50000.gif"/>
+                </div>
+
+
+
+
+
+                <h1>Bells and Whistles</h1>
+                <h2>30+ PSNR</h2>
+                <p>
+                    The <code>50_000</code> iteration model checkpoint was finetuned using double the number of ray samples (<code>NUM_SAMPLES=128</code>) using the same sampling method described above. After finetuning for <code>5_000</code> iterations, the model achieved a training PSNR of <code>31.75</code> and a validation PSNR of <code>30.94</code>:
+                </p>
+
+                <table>
+                    <tr>
+                        <th>Training Loss</th>
+                        <th>Training PSNR</th>
+                    </tr>
+                    <tr>
+                        <td><img src="results/part2_5/train_loss_55000.png"/></td>
+                        <td><img src="results/part2_5/train_psnr_55000.png"/></td>
+                    </tr>
+                </table>
+
+                <table>
+                    <tr>
+                        <th>Validation Loss</th>
+                        <th>Validation PSNR</th>
+                    </tr>
+                    <tr>
+                        <td><img src="results/part2_5/valid_loss_55000.png"/></td>
+                        <td><img src="results/part2_5/valid_psnr_55000.png"/></td>
+                    </tr>
+                </table>
+
+                <p>
+                    Below is the final result of the finetuned model compared to the result at <code>50_000</code> iterations. In the results from the finetuned model, the visual clarity improves slightly, but the amount of noise across the images is significantly lower and the finer details in the frontloader are visibly more stable.
+                </p>
+                <table>
+                    <tr>
+                        <th>50,000 Iterations</th>
+                        <th>Finetuned</th>
+                    </tr>
+                    <tr>
+                        <td><img src="results/part2_5/nerf_50000.gif"/></td>
+                        <td><img src="results/part2_5/nerf_55000.gif"/></td>
+                    </tr>
+                </table>
+
+
+                <h2>Depth Maps</h2>
+                <p>In order to produce a depth map, the volumetric rendering step was modified to use a white-to-black gradient of colors <code>rgbs = torch.linspace(1, 0, num_samples)</code> from <code>near</code> to <code>far</code> along the ray instead of the predicted colors from the model. However, the densities predicted by the model are still used in weighting these depth colors in order to calculate the expected depth color for each ray. In the following result, lighter colors represent positions closer to the camera whereas darker colors represent positions farther away from the camera:</p>
+
+                <table>
+                    <tr>
+                        <th>Original</th>
+                        <th>Depth Map</th>
+                    </tr>
+                    <tr>
+                        <td><img src="results/part2_5/nerf_55000.gif"/></td>
+                        <td><img src="results/part2_5/nerf_2000_d.gif"/></td>
+                    </tr>
+                </table>
+
+                <h2>Background Color</h2>
+                <p>The background color was injected into the render by weighting the desired background color <code>bg_color</code> by <code>T_{n+1}</code>, which is the probability that the ray does not terminate between <code>near</code> and <code>far</code> and adding that weighted color to the output of the volumetric render for each ray. This is accomplished by first calculating <code>bg_weights = torch.exp(-bg_prod)</code> with <code>bg_prod</code> being the sum of all the sigma-delta products within each ray. Then, <code>bg_weights * bg_color</code>is added to the final output of the original volumetric render to produce the results shown below:</p>
+                <table>
+                    <tr>
+                        <td><img src="results/part2_5/nerf_2000_bg.gif"/></td>
+                        <td><img src="results/part2_5/nerf_2000_bg_d.gif"/></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Populate table of contents -->
+    <script>
+        let count = 0;
+        let first = true
+        const toc = document.getElementById('table-of-contents')
+        const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6')
+        for (let i = 0; i < headings.length; ++i) {
+            const node = headings[i]
+
+            // If already has an id, ignore it
+            if (node.id) continue
+
+            // Otherwise, assign it a unique id
+            node.id = `section-${count++}`
+            
+            // Different class for h1, h2, etc
+            const tag = node.tagName.toLowerCase()
+            let linkClassName = ''
+            if (tag === 'h1') {
+                // Don't add divider before first item
+                if (first) {
+                    first = false
+                } else {
+                    // Add ToC divider
+                    const divider = document.createElement('div')
+                    divider.classList.add('divider')
+                    toc.appendChild(divider)
+
+                    // Add section divider in page body
+                    const sectionDivider = document.createElement('div')
+                    sectionDivider.classList.add('section-divider')
+                    node.parentNode.insertBefore(sectionDivider, node)
+                }
+                linkClassName = 'title'
+            } else if (tag === 'h2') {
+                linkClassName = 'section'
+            }
+
+            // Add link with correct class/formatting and same text content as
+            // its corresponding heading
+            const link = document.createElement('a')
+            link.classList.add(linkClassName)
+            link.href = '#' + node.id
+            link.innerHTML = node.innerHTML
+            toc.appendChild(link)
+        }
+    </script>
+</body>
+
+</html>
