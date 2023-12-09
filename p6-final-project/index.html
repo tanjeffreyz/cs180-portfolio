@@ -1,0 +1,831 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>CS 180 Final Project</title>
+
+    <link rel="stylesheet" href="style.css?">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&family=Open+Sans:ital,wght@0,400;0,700;1,600&display=swap"
+        rel="stylesheet">
+
+    <script defer src="https://use.fontawesome.com/releases/v5.7.2/js/all.js"
+        integrity="sha384-0pzryjIRos8mFBWMzSSZApWtPl/5++eIfzYmTgBBmXYdhvxPc+XcFEk+zJwDgWbP"
+        crossorigin="anonymous"></script>
+    <script src="offsets.js"></script>
+</head>
+
+<body>
+    <!-- Title -->
+    <div class="navbar clear nav-top">
+        <div class="row" style="text-align: center;">
+            <h1 id="title">CS 180 Final Project</h1>
+            <b>By Jeffrey Tan</b>
+        </div>
+    </div>
+
+    <div class="container clear">
+        <div class="row wrapper">
+            <!-- Table of Contents -->
+            <div class="sidepanel" id="table-of-contents"></div>
+
+            <!-- Contents -->
+            <div class="right-col">
+                <div style="text-align: center;">
+                    <img src="neural_style_transfer/results/lbfgs/tubingen_starry_night.png" width="49%"/>
+                </div>
+
+                <h1>A Neural Algorithm of Artistic Style</h1>
+
+
+                <h2>Building the Model</h2>
+                <p>
+                    The <code>StyleTransfer</code> model takes in four parameters: the content image <code>c_img</code>, the style image <code>s_img</code>, the layers of the models to use in calculating content loss <code>c_layers</code>, and those used for calculating style loss <code>s_layers</code>. First, in order to preserve the proportions of the content image, the <code>s_img</code> was resized to be the same size as <code>c_img</code> using <code>torchvision.transforms.Resize</code>. Following the methods in the <a href="https://arxiv.org/abs/1508.06576">paper</a>, the VGG-19 weights (pretrained on ImageNet) were loaded from PyTorch's <code>torchvision</code> library using <code>model = vgg19(weights=VGG19_Weights.IMAGENET1K_V1)</code>. Then, two types of loss probes <code>ContentLossProbe</code> and <code>StyleLossProbe</code> (implemented as <code>nn.Module</code>), are inserted after the layers specified in <code>c_layers</code> and <code>s_layers</code> respectively. This is accomplished by iterating through the layers in the original VGG-19 model and checking whether each layer is one of the layers we want to probe, and inserting the appropriate probe after it. Any layers after the last layer we want to probe are discarded to save computation time. Furthermore, because we want to train the image instead of the model weights, I froze the model weights using <code>model.requires_grad_(False)</code>.
+                </p>
+                <p>
+                    Each probe is initialized with the activation from the layer it is probing (the layer before the probe), which is later used in calculating the two types of losses. For example, if we want to insert a <code>ContentLossProbe</code> after layer <code>N</code>, the content image <code>c_img</code> is fed through all the layers up to and including <code>N</code>, and the output <code>content_features</code> at layer <code>N</code> is used to initialize a <code>ContentLossProbe</code>. The same process is used to initialize the <code>StyleLossProbe</code> probes using <code>s_img</code>.
+                </p>
+
+                <h2>Computing the Loss</h2>
+                <p>
+                    In the forward pass of a <code>ContentLossProbe</code>, the output from the previous layer <code>x</code> and the (constant) extracted features from the content image <code>content_features</code> are used in a simple MSE loss function to compute the content loss at this layer of the model. (I found this to converge much faster than the <code>loss = torch.sum((x - content_features) ** 2) / 2</code> proposed in the paper.) This loss is stored in the probe's <code>self.loss</code> variable and <code>x</code> is returned so that the probe acts like an identity layer.
+                </p>
+                <p>
+                    In the forward pass of a <code>StyleLossProbe</code>, there is an additional step of computing Gram matrices. From an input tensor <code>x</code> of size <code>(B, C, W, H)</code>, the Gram matrix is computed by first flattening the feature maps into feature vectors using <code>flat = x.view(C, W * H)</code>. Then, the feature correlations are computed using a matrix multiplication like so: <code>corr = torch.matmul(flat, flat.transpose(0, 1))</code>. Lastly, the feature correlation matrix is divided by a factor of <code>C * W * H</code> and returned as the Gram matrix. Now, to compute the style loss, both <code>x</code> and <code>style_features</code> are passed into <code>get_gram_matrix</code> to compute two Gram matrices <code>x_gram</code> and <code>s_gram</code>. These are then passed into the MSE loss function to calculate the final style loss and stored in the probe's <code>self.loss</code> variable. (I found MSE in general to be much better at converging compared to the <code>loss = torch.sum((x_gram - s_gram) ** 2) / (4 * W * W * H * H)</code> proposed in the paper, which did not produce visually appealing results.)
+                </p>
+                <p>
+                    During training, after the final image is fed forward through the model, the total content and style losses are computed by summing together all the losses from their respective probes and weighting them by <code>w_l</code>, which was set to <code>1 / num_probes</code> in the paper and is equivalent to taking the average. These totals <code>c_loss</code> and <code>s_loss</code> are weighted by their respective factors <code>CONTENT_WEIGHT</code> and <code>STYLE_WEIGHT</code> and then summed together to produce the final <code>total_loss</code>.
+                </p>
+
+                <h2>Results (Adam)</h2>
+                <p>
+                    The final image was initialized by cloning the content image and adding various amounts of white noise to it. I originally tried starting from a completely white noise image, but the Adam had trouble replicating the structure of the content image. (LBFGS did not have this issue, see the next section for more details.) The pixel values in the image were optimized using <code>Adam</code> with learning rates determined from hyperparameter sweeps for each style-content pair. Every image was optimized across 1000 iterations to produce the following results:
+                </p>
+
+
+                <table>
+                    <tr>
+                        <td>
+                            Content Images &rarr;
+                            <br><br>
+                            Style Images &darr;
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/data/content/ballerina.jpg"/>
+                            Ballerina
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/data/content/tubingen.jpg"/>
+                            Tübingen, Germany
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="neural_style_transfer/data/style/picasso.jpg"/>
+                            Femme nue assise, Picasso
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/adam/ballerina_picasso.png"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/adam/tubingen_picasso.png"/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="neural_style_transfer/data/style/starry_night.jpg"/>
+                            The Starry Night, Picasso
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/adam/ballerina_starry_night.png"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/adam/tubingen_starry_night.png"/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="neural_style_transfer/data/style/shipwreck.jpg"/>
+                            The Shipwreck of the Minotaur, J. M. W. Turner
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/adam/ballerina_shipwreck.png"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/adam/tubingen_shipwreck.png"/>
+                        </td>
+                    </tr>
+                </table>
+
+                <p>
+                    Here are some videos that show how the images change over the training process:
+                </p>
+
+                <table>
+                    <tr>
+                        <td>
+                            Content Images &rarr;
+                            <br><br>
+                            Style Images &darr;
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/data/content/ballerina.jpg"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/data/content/tubingen.jpg"/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="neural_style_transfer/data/style/picasso.jpg"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/adam/ballerina_picasso.gif"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/adam/tubingen_picasso.gif"/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="neural_style_transfer/data/style/starry_night.jpg"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/adam/ballerina_starry_night.gif"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/adam/tubingen_starry_night.gif"/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="neural_style_transfer/data/style/shipwreck.jpg"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/adam/ballerina_shipwreck.gif"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/adam/tubingen_shipwreck.gif"/>
+                        </td>
+                    </tr>
+                </table>
+
+
+
+                <h2>Results (LBFGS)</h2>
+                <p>
+                    One of the authors recommended using LBFGS instead of Adam as the optimizer (<a href="https://discuss.pytorch.org/t/pytorch-tutorial-for-neural-transfert-of-artistic-style/336/18?u=alexis-jacq">link</a>), so I gave that a try. Unlike Adam, LBFGS was able to optimize the image starting from either complete white noise or the original content image with some added noise, producing similar results. In the following results, I initialized the final image to be the content image <code>c_img</code> with some added white noise determined by <code>config['noise']</code>, which I found to be much more consistent than starting from complete white noise. Overall, LBFGS produced far more stylistic results compared to Adam and more accurately captured the textures in the style image. The following images results were from <code>600</code> iterations using <code>conv1_1</code>, <code>conv2_1</code>, <code>conv3_1</code>, <code>conv4_1</code>, and <code>conv5_1</code> as the style layers and <code>conv4_2</code> as the content layer. The style and content weights were tuned until I generated a visually appealing image. (The exact values are omitted for visual clarity. Please see the <code>.json</code> files for the exact weights and other training configurations.)
+                </p>
+                <p>
+                    As a sidenote, I learned that LBFGS tries to approximate the Hessian of the loss function in order to take better steps, which makes it far less efficient for higher-dimension optimization compared to Adam. However, because we are optimizing a small image and not a deep neural network, the dimensionality of the problem should intuitively be low enough for LBFGS to outperform Adam.
+                </p>
+
+                <table>
+                    <tr>
+                        <td>
+                            Content Images &rarr;
+                            <br><br>
+                            Style Images &darr;
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/data/content/ballerina.jpg"/>
+                            Ballerina
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/data/content/tubingen.jpg"/>
+                            Tübingen, Germany
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="neural_style_transfer/data/style/picasso.jpg"/>
+                            Femme nue assise, Picasso
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/lbfgs/ballerina_picasso.png"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/lbfgs/tubingen_picasso.png"/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="neural_style_transfer/data/style/starry_night.jpg"/>
+                            The Starry Night, Picasso
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/lbfgs/ballerina_starry_night.png"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/lbfgs/tubingen_starry_night.png"/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="neural_style_transfer/data/style/shipwreck.jpg"/>
+                            The Shipwreck of the Minotaur, J. M. W. Turner
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/lbfgs/ballerina_shipwreck.png"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/lbfgs/tubingen_shipwreck.png"/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="neural_style_transfer/data/style/scream.jpg"/>
+                            Der Schrei, Edvard Munch
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/lbfgs/ballerina_scream.png"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/lbfgs/tubingen_scream.png"/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="neural_style_transfer/data/style/composition.jpg"/>
+                            Composition VII, Wassily Kandinsky
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/lbfgs/ballerina_composition.png"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/lbfgs/tubingen_composition.png"/>
+                        </td>
+                    </tr>
+                </table>
+
+                <p>
+                    Here are some videos that show how the images change over the training process:
+                </p>
+
+                <table>
+                    <tr>
+                        <td>
+                            Content Images &rarr;
+                            <br><br>
+                            Style Images &darr;
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/data/content/ballerina.jpg"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/data/content/tubingen.jpg"/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="neural_style_transfer/data/style/picasso.jpg"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/lbfgs/ballerina_picasso.gif"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/lbfgs/tubingen_picasso.gif"/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="neural_style_transfer/data/style/starry_night.jpg"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/lbfgs/ballerina_starry_night.gif"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/lbfgs/tubingen_starry_night.gif"/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="neural_style_transfer/data/style/shipwreck.jpg"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/lbfgs/ballerina_shipwreck.gif"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/lbfgs/tubingen_shipwreck.gif"/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="neural_style_transfer/data/style/scream.jpg"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/lbfgs/ballerina_scream.gif"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/lbfgs/tubingen_scream.gif"/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="neural_style_transfer/data/style/composition.jpg"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/lbfgs/ballerina_composition.gif"/>
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/lbfgs/tubingen_composition.gif"/>
+                        </td>
+                    </tr>
+                </table>
+
+
+
+                <h2>Varying the Style Layers</h2>
+                <p>
+                    The style transfer was performed with style losses on increasing subsets of layers, from <code>[conv1_1]</code> to <code>[conv1_1, conv2_1, conv3_1, conv4_1, conv5_1]</code>. As more style layers are probed, the texture of the style image becomes more apparent. When only <code>conv1_1</code> is used in computing the style loss, the color easily transfers over, but the texture of the background and the shading on the ballerina still roughly look like that of the content image. However, when layers up to <code>conv5_1</code> are used, the ballerina and background starts to replicate the sharp lines, blocky texture, and splotchy colors of the Picasso painting.
+                </p>
+
+                <table>
+                    <tr>
+                        <th width="100px">Style Layers</th>
+                        <th>Result</th>
+                    </tr>
+                    <tr>
+                        <td><code>conv_1</code></td>
+                        <td><img src="neural_style_transfer/results/vary_style_layers/1/ballerina_picasso.png" style="width:50%" /></td>
+                    </tr>
+                    <tr>
+                        <td><code>conv_1</code>, <code>conv_2</code></td>
+                        <td><img src="neural_style_transfer/results/vary_style_layers/2/ballerina_picasso.png" style="width:50%" /></td>
+                    </tr>
+                    <tr>
+                        <td><code>conv_1</code>, <code>conv_2</code>, <code>conv_3</code></td>
+                        <td><img src="neural_style_transfer/results/vary_style_layers/3/ballerina_picasso.png" style="width:50%" /></td>
+                    </tr>
+                    <tr>
+                        <td><code>conv_1</code>, <code>conv_2</code>, <code>conv_3</code>, <code>conv_4</code></td>
+                        <td><img src="neural_style_transfer/results/vary_style_layers/4/ballerina_picasso.png" style="width:50%" /></td>
+                    </tr>
+                    <tr>
+                        <td><code>conv_1</code>, <code>conv_2</code>, <code>conv_3</code>, <code>conv_4</code>, <code>conv_5</code></td>
+                        <td><img src="neural_style_transfer/results/vary_style_layers/5/ballerina_picasso.png" style="width:50%" /></td>
+                    </tr>
+                </table>
+
+
+
+
+
+                <h2>Varying the Style Weight</h2>
+                <p>
+                    The style weight was varied from <code>1E3</code> to <code>1E6</code>. At lower style weights, the color was easily transferred (although noisily) but none of the characteristics of the style image's texture were transferred. However, as the style weight increased, coherent textures from the style image began to appear in some parts of the image, and finally all throughout the image at a style weight of <code>1E6</code>.
+                </p>
+                <table>
+                    <tr>
+                        <th width="100px">Style Weight</th>
+                        <th>Result</th>
+                    </tr>
+                    <tr>
+                        <td><code>1E3</code></td>
+                        <td><img src="neural_style_transfer/results/vary_style_weight/1E3/ballerina_composition.png" style="width:50%" /></td>
+                    </tr>
+                    <tr>
+                        <td><code>1E4</code></td>
+                        <td><img src="neural_style_transfer/results/vary_style_weight/1E4/ballerina_composition.png" style="width:50%" /></td>
+                    </tr>
+                    <tr>
+                        <td><code>1E5</code></td>
+                        <td><img src="neural_style_transfer/results/vary_style_weight/1E5/ballerina_composition.png" style="width:50%" /></td>
+                    </tr>
+                    <tr>
+                        <td><code>1E6</code></td>
+                        <td><img src="neural_style_transfer/results/vary_style_weight/1E6/ballerina_composition.png" style="width:50%" /></td>
+                    </tr>
+                    <tr>
+                        <td><code>1E7</code></td>
+                        <td><img src="neural_style_transfer/results/vary_style_weight/1E7/ballerina_composition.png" style="width:50%" /></td>
+                    </tr>
+                </table>
+
+
+
+                <h2>Varying the Image Size</h2>
+                <p>
+                    One interesting question I wanted to answer was the effect of image size on the quality of transferred textures and features. Because VGG-19 uses convolutional layers with kernels of fixed size, I suspected that there were limits to the scale invariance and receptive field of the convolutional neural network.
+                </p>
+                <p>
+                    I ran the following experiment on <code>tubingen.jpg</code> and <code>starry_night.jpg</code>, which have an initial size of <code>512x384</code>. The size of the images, and consequently the size of the final image, were varied to be both larger and smaller than the original. Layer <code>conv4_2</code> was used as the content layer, and layers <code>[conv1_1, conv2_1, conv3_1, conv4_1, conv5_1]</code> were used for the style layers. The style weight was set to <code>1E8</code> and a small bit of uniform white noise was added to the content image to initialize the final image. These experiments produced the following results:
+                </p>
+
+                <table>
+                    <tr>
+                        <th width="100px">Scale Factor</th>
+                        <th>Result</th>
+                    </tr>
+                    <tr>
+                        <td><code>0.5</code></td>
+                        <td><img src="neural_style_transfer/results/vary_image_size/0.5/tubingen_starry_night.png" style="width:50%" /></td>
+                    </tr>
+                    <tr>
+                        <td><code>0.75</code></td>
+                        <td><img src="neural_style_transfer/results/vary_image_size/0.75/tubingen_starry_night.png" style="width:50%" /></td>
+                    </tr>
+                    <tr>
+                        <td><code>1.0</code></td>
+                        <td><img src="neural_style_transfer/results/vary_image_size/1.0/tubingen_starry_night.png" style="width:50%" /></td>
+                    </tr>
+                    <tr>
+                        <td><code>1.5</code></td>
+                        <td><img src="neural_style_transfer/results/vary_image_size/1.5/tubingen_starry_night.png" style="width:50%" /></td>
+                    </tr>
+                    <tr>
+                        <td><code>2.0</code></td>
+                        <td><img src="neural_style_transfer/results/vary_image_size/2.0/tubingen_starry_night.png" style="width:50%" /></td>
+                    </tr>
+                    <tr>
+                        <td><code>3.0</code></td>
+                        <td><img src="neural_style_transfer/results/vary_image_size/3.0/tubingen_starry_night.png" style="width:50%" /></td>
+                    </tr>
+                </table>
+
+                <p>
+                    Interestingly, the quality, intensity, and colors of the style transfer do not change much, and all the images do have the distinct color and brush strokes from the painting. However, as the image size increases, the brush strokes become visibly smaller, as do the features such as the swirls in the sky. Furthermore, the style features such as the bright yellow spots on the walls and the dark strokes near the river stay in the same position in each image, regardless of scale. 
+                </p>
+                <p>
+                    From this, we can conclude that convolutional neural networks for style transfer have strong shift invariance but limited scale invariance. While the color and relative positions of the transferred styles are preserved, the scale of the details in the style are not.
+                </p>
+
+
+
+                <h2>Custom Results</h2>
+                <p>
+                    Overall, algorithm generalized well to custom landscapes and textures. Interestingly, it was able to not only capture the texture of the brush strokes from the style of each painting, but also the texture of the canvas as well!
+                </p>
+                <table>
+                    <tr>
+                        <th>Content Image</th>
+                        <th>Style Image</th>
+                        <th>Final Result</th>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="neural_style_transfer/data/content/seattle.jpg" />
+                            Seattle, Washington
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/data/style/monet1.jpg" />
+                            Les étangs, Claude Monet
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/custom/seattle_monet1.png" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="neural_style_transfer/data/content/zhangjiajie.jpg" />
+                            Zhangjiajie, China
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/data/style/monet2.jpg" />
+                            The Seine at Argenteuil, Claude Monet
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/custom/zhangjiajie_monet2.png" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <img src="neural_style_transfer/data/content/norway.jpg" />
+                            The Sognefjord, Norway
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/data/style/pond.jpg" />
+                            Saatchi Art
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/custom/norway_pond.png" />
+                        </td>
+                    </tr>
+                </table>
+
+                <p>
+                    Here are some videos that show how the images change over the training process:
+                </p>
+
+                <table>
+                    <tr>
+                        <td>
+                            <img src="neural_style_transfer/results/custom/seattle_monet1.gif" />
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/custom/zhangjiajie_monet2.gif" />
+                        </td>
+                        <td>
+                            <img src="neural_style_transfer/results/custom/norway_pond.gif" />
+                        </td>
+                    </tr>
+                </table>
+
+                
+
+                <h1>Lightfield Camera</h1>
+
+                <h2>Depth Refocusing</h2>
+                <p>
+                    As described in the <a href="http://graphics.stanford.edu/papers/lfcamera/lfcamera-150dpi.pdf">paper</a>, the discretized form of the synthetic photography equation when <code>beta</code> is fixed at <code>1</code> is equivalent to shifting and averaging the sub-aperture images. The <a href="http://lightfield.stanford.edu/lfs.html">datasets</a> already provide these sub-aperture images, which were retrieved by sampling corresponding pixels across all microlenses. In order to refocus the image, the dataset was first reorganized into a tensor of size <code>(17, 17, H, W, 3)</code>. The first two dimensions represent the location of the sampled pixel within each microlens, or the 2D location of the sub-aperture relative to the aperture. The other three dimensions are the contents of the image.
+                </p>
+                <p>
+                    The refocusing algorithm is as follows: First, the position of the center-most sub-aperture is determined, which was <code>center = (8, 8)</code> across all the datasets. Then, for each sub-aperture image (positioned at <code>(i, j)</code>) in the dataset, the horizontal and vertical distances between that sub-aperture and <code>center</code> were calculated using <code>x_dist = j - center[1]</code> and <code>y_dist = i - center[0]</code>. For simplicity, these distances were then scaled by an arbitrary depth factor <code>depth_factor</code> in order to produce the shift offsets <code>dx = int(x_dist * depth_factor)</code> and <code>dy = -int(y_dist * depth_factor)</code> in pixels. Each sub-aperture image is shifted by <code>dx</code> and <code>dy</code>, and the average of the pixel values are computed using <code>np.mean</code> across a list of the shifted images.
+                </p>
+
+                <p>
+                    Although the synthetic photography equation uses an <code>alpha</code> term in the denominator of the shift, the <code>alpha</code> term scales the shifts exponentially, which was hard to work with. Thus, I decided to instead scale the distances by a linear factor <code>depth_factor</code>, which proved to be far easier to control.
+                </p>
+                
+
+                <h2>Results (Depth)</h2>
+                <table>
+                    <tr>
+                        <th>depth_factor=0.000</th>
+                        <th>depth_factor=1.034</th>
+                        <th>depth_factor=2.069</th>
+                        <th>depth_factor=3.000</th>
+                    </tr>
+                    <tr>
+                        <td><img src="light_field_camera\results\chess\refocus_0.0_3.0\0.000.png" /></td>
+                        <td><img src="light_field_camera\results\chess\refocus_0.0_3.0/1.034.png" /></td>
+                        <td><img src="light_field_camera\results\chess\refocus_0.0_3.0/2.069.png" /></td>
+                        <td><img src="light_field_camera\results\chess\refocus_0.0_3.0/3.000.png" /></td>
+                    </tr>
+                </table>
+                <div class="gallery">
+                    <table>
+                        <tr>
+                            <th>Video</th>
+                        </tr>
+                        <tr>
+                            <td><img src="light_field_camera/results/chess/refocus_0.0_3.0/final-min.gif" /></td>
+                        </tr>
+                    </table>
+                </div>
+                
+
+                
+                <table>
+                    <tr>
+                        <th>depth_factor=0.000</th>
+                        <th>depth_factor=0.897</th>
+                        <th>depth_factor=1.883</th>
+                        <th>depth_factor=2.600</th>
+                    </tr>
+                    <tr>
+                        <td><img src="light_field_camera\results/flower/refocus_0.0_2.6/0.000.png" /></td>
+                        <td><img src="light_field_camera\results/flower/refocus_0.0_2.6/0.897.png" /></td>
+                        <td><img src="light_field_camera\results/flower/refocus_0.0_2.6/1.883.png" /></td>
+                        <td><img src="light_field_camera\results/flower/refocus_0.0_2.6/2.600.png" /></td>
+                    </tr>
+                </table>
+                <div class="gallery">
+                    <table>
+                        <tr>
+                            <th>Video</th>
+                        </tr>
+                        <tr>
+                            <td><img src="light_field_camera/results/flower/refocus_0.0_2.6/final-min.gif" /></td>
+                        </tr>
+                    </table>
+                </div>
+
+
+                
+                
+                <table>
+                    <tr>
+                        <th>depth_factor=-1.200</th>
+                        <th>depth_factor=2.607</th>
+                        <th>depth_factor=5.779</th>
+                        <th>depth_factor=8.000</th>
+                    </tr>
+                    <tr>
+                        <td><img src="light_field_camera\results/lego/refocus_-1.2_8.0/-1.200.png" /></td>
+                        <td><img src="light_field_camera\results/lego/refocus_-1.2_8.0/2.607.png" /></td>
+                        <td><img src="light_field_camera\results/lego/refocus_-1.2_8.0/5.779.png" /></td>
+                        <td><img src="light_field_camera\results/lego/refocus_-1.2_8.0/8.000.png" /></td>
+                    </tr>
+                </table>
+                <div class="gallery">
+                    <table>
+                        <tr>
+                            <th>Video</th>
+                        </tr>
+                        <tr>
+                            <td><img src="light_field_camera/results/lego/refocus_-1.2_8.0/final-min.gif" /></td>
+                        </tr>
+                    </table>
+                </div>
+
+
+
+
+                <table>
+                    <tr>
+                        <th>depth_factor=-3.000</th>
+                        <th>depth_factor=-1.138</th>
+                        <th>depth_factor=1.138</th>
+                        <th>depth_factor=3.000</th>
+                    </tr>
+                    <tr>
+                        <td><img src="light_field_camera\results/treasure/refocus_-3.0_3.0/-3.000.png" /></td>
+                        <td><img src="light_field_camera\results/treasure/refocus_-3.0_3.0/-1.138.png" /></td>
+                        <td><img src="light_field_camera\results/treasure/refocus_-3.0_3.0/1.138.png" /></td>
+                        <td><img src="light_field_camera\results/treasure/refocus_-3.0_3.0/3.000.png" /></td>
+                    </tr>
+                </table>
+                <div class="gallery">
+                    <table>
+                        <tr>
+                            <th>Video</th>
+                        </tr>
+                        <tr>
+                            <td><img src="light_field_camera/results/treasure/refocus_-3.0_3.0/final-min.gif" /></td>
+                        </tr>
+                    </table>
+                </div>
+
+
+
+
+
+                <h2>Adjusting Aperture</h2>
+                <p>
+                    In order to change the apparent aperture of the camera, the <code>refocus</code> function from the previous part was modified to support an <code>aperture</code> parameter. When iterating through the 289 sub-aperture images, an additional check is added to skip images that are more than <code>aperture</code> grid positions away from the center position at <code>(8, 8)</code> (either horizontally or vertically). For some sub-aperture at position <code>(i, j)</code>, if <code>abs(i - center[0]) > aperture or abs(j - center[1]) > aperture</code> is true, then this image is skipped during processing and omitted from the final average. For sub-aperture images within the <code>aperture</code> range, the processing follows the exact algorithm described in the previous part.
+                </p>
+                <p>
+                    Having more sub-aperture images in the final render introduces more noise into the image because sub-apertures that are farther apart have slightly different views, which contributes to the blurring effect in the above results. Having fewer images centered around the central sub-aperture maintains the sharpness of the render near the center but also reduces the blurring near the edges of the image, giving the impression of a smaller aperture and a larger depth of field.
+                </p>
+
+
+                <h2>Results (Aperture)</h2>
+                The following results are with <code>depth_factor = 1.5</code>.
+
+                <table>
+                    <tr>
+                        <th>aperture=1.000</th>
+                        <th>aperture=3.069</th>
+                        <th>aperture=5.138</th>
+                        <th>aperture=7.000</th>
+                    </tr>
+                    <tr>
+                        <td><img src="light_field_camera\results\chess/aperture_1.0_7.0_1.5/1.000.png" /></td>
+                        <td><img src="light_field_camera\results\chess/aperture_1.0_7.0_1.5/3.069.png" /></td>
+                        <td><img src="light_field_camera\results\chess/aperture_1.0_7.0_1.5/5.138.png" /></td>
+                        <td><img src="light_field_camera\results\chess/aperture_1.0_7.0_1.5/7.000.png" /></td>
+                    </tr>
+                </table>
+                <div class="gallery">
+                    <table>
+                        <tr>
+                            <th>Video</th>
+                        </tr>
+                        <tr>
+                            <td><img src="light_field_camera/results/chess/aperture_1.0_7.0_1.5/final-min.gif" /></td>
+                        </tr>
+                    </table>
+                </div>
+                
+
+                The following results are with <code>depth_factor = 2.6</code>.
+                <table>
+                    <tr>
+                        <th>aperture=1.000</th>
+                        <th>aperture=3.069</th>
+                        <th>aperture=5.138</th>
+                        <th>aperture=7.000</th>
+                    </tr>
+                    <tr>
+                        <td><img src="light_field_camera\results/flower/aperture_1.0_7.0_2.6/1.000.png" /></td>
+                        <td><img src="light_field_camera\results/flower/aperture_1.0_7.0_2.6/3.069.png" /></td>
+                        <td><img src="light_field_camera\results/flower/aperture_1.0_7.0_2.6/5.138.png" /></td>
+                        <td><img src="light_field_camera\results/flower/aperture_1.0_7.0_2.6/7.000.png" /></td>
+                    </tr>
+                </table>
+                <div class="gallery">
+                    <table>
+                        <tr>
+                            <th>Video</th>
+                        </tr>
+                        <tr>
+                            <td><img src="light_field_camera/results/flower/aperture_1.0_7.0_2.6/final-min.gif" /></td>
+                        </tr>
+                    </table>
+                </div>
+
+
+                
+                The following results are with <code>depth_factor = 8.0</code>.
+                <table>
+                    <tr>
+                        <th>aperture=0.483</th>
+                        <th>aperture=2.414</th>
+                        <th>aperture=4.586</th>
+                        <th>aperture=7.000</th>
+                    </tr>
+                    <tr>
+                        <td><img src="light_field_camera\results/lego/aperture_0.0_7.0_8.0/0.483.png" /></td>
+                        <td><img src="light_field_camera\results/lego/aperture_0.0_7.0_8.0/2.414.png" /></td>
+                        <td><img src="light_field_camera\results/lego/aperture_0.0_7.0_8.0/4.586.png" /></td>
+                        <td><img src="light_field_camera\results/lego/aperture_0.0_7.0_8.0/7.000.png" /></td>
+                    </tr>
+                </table>
+                <div class="gallery">
+                    <table>
+                        <tr>
+                            <th>Video</th>
+                        </tr>
+                        <tr>
+                            <td><img src="light_field_camera/results/lego/aperture_0.0_7.0_8.0/final-min.gif" /></td>
+                        </tr>
+                    </table>
+                </div>
+
+
+
+                The following results are with <code>depth_factor = 3.0</code>.
+                <table>
+                    <tr>
+                        <th>aperture=0.483</th>
+                        <th>aperture=2.414</th>
+                        <th>aperture=4.586</th>
+                        <th>aperture=7.000</th>
+                    </tr>
+                    <tr>
+                        <td><img src="light_field_camera\results/treasure/aperture_0.0_7.0_3.0/0.483.png" /></td>
+                        <td><img src="light_field_camera\results/treasure/aperture_0.0_7.0_3.0/2.414.png" /></td>
+                        <td><img src="light_field_camera\results/treasure/aperture_0.0_7.0_3.0/4.586.png" /></td>
+                        <td><img src="light_field_camera\results/treasure/aperture_0.0_7.0_3.0/7.000.png" /></td>
+                    </tr>
+                </table>
+                <div class="gallery">
+                    <table>
+                        <tr>
+                            <th>Video</th>
+                        </tr>
+                        <tr>
+                            <td><img src="light_field_camera/results/treasure/aperture_0.0_7.0_3.0/final-min.gif" /></td>
+                        </tr>
+                    </table>
+                </div>
+
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Populate table of contents -->
+    <script>
+        let count = 0;
+        let first = true
+        const toc = document.getElementById('table-of-contents')
+        const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6')
+        for (let i = 0; i < headings.length; ++i) {
+            const node = headings[i]
+
+            // If already has an id, ignore it
+            if (node.id) continue
+
+            // Otherwise, assign it a unique id
+            node.id = `section-${count++}`
+            
+            // Different class for h1, h2, etc
+            const tag = node.tagName.toLowerCase()
+            let linkClassName = ''
+            if (tag === 'h1') {
+                // Don't add divider before first item
+                if (first) {
+                    first = false
+                } else {
+                    // Add ToC divider
+                    const divider = document.createElement('div')
+                    divider.classList.add('divider')
+                    toc.appendChild(divider)
+
+                    // Add section divider in page body
+                    const sectionDivider = document.createElement('div')
+                    sectionDivider.classList.add('section-divider')
+                    node.parentNode.insertBefore(sectionDivider, node)
+                }
+                linkClassName = 'title'
+            } else if (tag === 'h2') {
+                linkClassName = 'section'
+            }
+
+            // Add link with correct class/formatting and same text content as
+            // its corresponding heading
+            const link = document.createElement('a')
+            link.classList.add(linkClassName)
+            link.href = '#' + node.id
+            link.innerHTML = node.innerHTML
+            toc.appendChild(link)
+        }
+    </script>
+</body>
+
+</html>
